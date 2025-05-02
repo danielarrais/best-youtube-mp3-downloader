@@ -1,0 +1,34 @@
+# Pasta de downloads
+mp3_downloads/
+
+# Arquivos temporários
+*.tmp
+
+# Ambiente virtual
+venv/
+env/
+.env/
+
+# Arquivos de cache Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Distribuição / empacotamento
+dist/
+build/
+*.egg-info/
+
+# Arquivos de IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Arquivos específicos do sistema
+.DS_Store
+Thumbs.db 
