@@ -38,6 +38,7 @@ jobs:
     
     - name: Install system dependencies (Windows)
       if: matrix.os == 'windows-latest'
+      shell: pwsh
       run: |
         choco install ffmpeg -y
     
@@ -47,23 +48,30 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
     
-    - name: Get FFmpeg path
-      id: ffmpeg
-      shell: bash
+    - name: Get FFmpeg path (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      id: ffmpeg_win
       run: |
-        if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          echo "FFMPEG_PATH=$(where ffmpeg)" >> $GITHUB_OUTPUT
-        else
-          echo "FFMPEG_PATH=$(which ffmpeg)" >> $GITHUB_OUTPUT
-        fi
+        $ffmpeg = (Get-Command ffmpeg).Source
+        echo "FFMPEG_PATH=$ffmpeg" >> $env:GITHUB_OUTPUT
     
-    - name: Build executable
+    - name: Get FFmpeg path (Linux/macOS)
+      if: matrix.os != 'windows-latest'
+      id: ffmpeg_unix
       run: |
-        if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          pyinstaller --onefile --name yt-mp3-downloader --add-binary "${{ steps.ffmpeg.outputs.FFMPEG_PATH }};." main.py
-        else
-          pyinstaller --onefile --name yt-mp3-downloader --add-binary "${{ steps.ffmpeg.outputs.FFMPEG_PATH }}:." main.py
-        fi
+        echo "FFMPEG_PATH=$(which ffmpeg)" >> $GITHUB_OUTPUT
+    
+    - name: Build executable (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        pyinstaller --onefile --name yt-mp3-downloader --add-binary "${{ steps.ffmpeg_win.outputs.FFMPEG_PATH }};." main.py
+    
+    - name: Build executable (Linux/macOS)
+      if: matrix.os != 'windows-latest'
+      run: |
+        pyinstaller --onefile --name yt-mp3-downloader --add-binary "${{ steps.ffmpeg_unix.outputs.FFMPEG_PATH }}:." main.py
     
     - name: Make executable (Linux/macOS)
       if: matrix.os != 'windows-latest'
