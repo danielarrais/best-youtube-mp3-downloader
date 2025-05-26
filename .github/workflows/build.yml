@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+# Adicionar permissões explícitas
+permissions:
+  contents: write  # Necessário para criar releases e fazer upload de assets
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
