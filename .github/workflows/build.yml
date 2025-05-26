@@ -47,9 +47,23 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
     
+    - name: Get FFmpeg path
+      id: ffmpeg
+      shell: bash
+      run: |
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          echo "FFMPEG_PATH=$(where ffmpeg)" >> $GITHUB_OUTPUT
+        else
+          echo "FFMPEG_PATH=$(which ffmpeg)" >> $GITHUB_OUTPUT
+        fi
+    
     - name: Build executable
       run: |
-        pyinstaller --onefile --name yt-mp3-downloader main.py
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          pyinstaller --onefile --name yt-mp3-downloader --add-binary "${{ steps.ffmpeg.outputs.FFMPEG_PATH }};." main.py
+        else
+          pyinstaller --onefile --name yt-mp3-downloader --add-binary "${{ steps.ffmpeg.outputs.FFMPEG_PATH }}:." main.py
+        fi
     
     - name: Make executable (Linux/macOS)
       if: matrix.os != 'windows-latest'

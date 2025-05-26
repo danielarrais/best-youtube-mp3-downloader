@@ -12,6 +12,32 @@ from urllib.error import HTTPError, URLError
 import socket
 import sys
 
+def get_ffmpeg_path():
+    """Get the path to the embedded ffmpeg binary"""
+    if getattr(sys, 'frozen', False):
+        # Running as compiled executable
+        base_path = sys._MEIPASS
+    else:
+        # Running as script
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    
+    # Determine the correct ffmpeg binary name based on platform
+    if sys.platform == 'win32':
+        ffmpeg_name = 'ffmpeg.exe'
+    else:
+        ffmpeg_name = 'ffmpeg'
+    
+    ffmpeg_path = os.path.join(base_path, ffmpeg_name)
+    
+    # Make sure the binary is executable on Unix-like systems
+    if sys.platform != 'win32':
+        os.chmod(ffmpeg_path, 0o755)
+    
+    return ffmpeg_path
+
+# Configure pydub to use the embedded ffmpeg
+AudioSegment.converter = get_ffmpeg_path()
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Download and convert YouTube videos to MP3')
     parser.add_argument('-q', '--quality', type=str, default='128k',

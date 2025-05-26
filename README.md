@@ -13,6 +13,7 @@ Python script to download YouTube videos and convert them to MP3. Organizes play
 - Metadata preservation (title and artist)
 - Automatic filename sanitization
 - Duplicate file detection
+- No external dependencies required (FFmpeg included)
 
 ## Quick Start
 
@@ -49,7 +50,12 @@ cd best-youtube-mp3-downloader
 pip install -r requirements.txt
 ```
 
-3. Run the script:
+3. Install FFmpeg:
+   - Windows: `choco install ffmpeg`
+   - macOS: `brew install ffmpeg`
+   - Linux: `sudo apt install ffmpeg`
+
+4. Run the script:
 ```bash
 python main.py -p "PLAYLIST_URL"
 ```
@@ -115,8 +121,8 @@ downloads/
    - Increase wait time with `-d`
 
 2. **Conversion Error**
-   - Verify if all dependencies are installed
    - Check if there's enough disk space
+   - If running from source, make sure FFmpeg is installed
 
 3. **URL file not found**
    - Make sure `musics.txt` exists
