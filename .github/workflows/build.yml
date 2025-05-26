@@ -66,12 +66,12 @@ jobs:
       if: matrix.os == 'windows-latest'
       shell: pwsh
       run: |
-        pyinstaller --onefile --name yt-mp3-downloader --add-binary "${{ steps.ffmpeg_win.outputs.FFMPEG_PATH }};." main.py
+        pyinstaller --onefile --name yt-mp3-downloader --add-binary "${{ steps.ffmpeg_win.outputs.FFMPEG_PATH }};ffmpeg.exe" main.py
     
     - name: Build executable (Linux/macOS)
       if: matrix.os != 'windows-latest'
       run: |
-        pyinstaller --onefile --name yt-mp3-downloader --add-binary "${{ steps.ffmpeg_unix.outputs.FFMPEG_PATH }}:." main.py
+        pyinstaller --onefile --name yt-mp3-downloader --add-binary "${{ steps.ffmpeg_unix.outputs.FFMPEG_PATH }}:ffmpeg" main.py
     
     - name: Make executable (Linux/macOS)
       if: matrix.os != 'windows-latest'
