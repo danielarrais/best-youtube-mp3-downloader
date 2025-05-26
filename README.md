@@ -59,79 +59,16 @@ python main.py -f my_musics.txt
 
 MP3 files will be saved in the `downloads/` folder.
 
-## Detailed Features
+## Features
 
-### Parallel Download
-- Uses `ThreadPoolExecutor` for simultaneous downloads
-- Maximum workers limited to 5 to prevent overload
-- Optimized for better performance and stability
-
-### Retry System
+- Parallel downloads (up to 5 simultaneous)
 - Automatic retries on failure
-- Configurable wait time between attempts
-- Specific handling for network errors
-- Detailed feedback on attempts and errors
-
-### File Handling
+- Configurable audio quality
+- Playlist support
+- Progress bar and statistics
+- Metadata preservation (title and artist)
 - Automatic filename sanitization
 - Duplicate file detection
-- Automatic temporary file cleanup
-- Dedicated folder organization
-- Support for text files with URLs
-- Automatic playlist folder organization
-
-### Metadata
-- Music title
-- Artist/channel name
-- Configurable audio quality
-
-### Feedback and Monitoring
-- Real-time progress bar
-- Detailed statistics:
-  - Total downloads
-  - Successful downloads
-  - Skipped files (already exist)
-  - Failures
-  - Total processing time
-- Informative messages about attempts and errors
-- Detailed summary at the end of the process
-
-## Customization
-
-### Change Audio Quality
-You can specify audio quality in two ways:
-
-1. Via command line:
-```bash
-python main.py -q 320k
-# or
-python playlist_downloader.py "PLAYLIST_URL" -q 320k
-```
-
-2. By modifying the code:
-```python
-audio.export(mp3_path, format="mp3", bitrate="320k")
-```
-
-### Configure Retries
-Adjust number of attempts and wait time:
-```bash
-python main.py -r 5 -d 10
-# or
-python playlist_downloader.py "PLAYLIST_URL" -r 5 -d 10
-```
-
-### Change Output Directory
-For playlists, use the `-o` parameter:
-```bash
-python playlist_downloader.py "PLAYLIST_URL" -o "My Playlist"
-```
-
-### Adjust Parallel Downloads
-Modify the `max_workers` variable:
-```python
-max_workers = min(5, len(links))
-```
 
 ## Troubleshooting
 
@@ -151,23 +88,6 @@ max_workers = min(5, len(links))
    - Make sure `musics.txt` exists
    - Verify if the file path is correct
    - Use `-f` parameter to specify a different file
-
-4. **Downloads stopping unexpectedly**
-   - Reduce number of parallel downloads
-   - Increase wait time between attempts
-   - Check your internet connection
-   - Use `-r` parameter to increase retry attempts
-
-5. **Playlist download error**
-   - Verify if the playlist URL is correct
-   - Make sure the playlist is public
-   - Check if you have permission to access the playlist
-
-### Logs and Debug
-- Script displays detailed messages for each operation
-- Errors are caught and displayed with corresponding URL
-- Final statistics show complete process results
-- Information about attempts and wait times is displayed
 
 ## Contributing
 
