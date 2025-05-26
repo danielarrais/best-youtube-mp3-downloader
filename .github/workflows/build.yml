@@ -54,6 +54,7 @@ jobs:
       id: ffmpeg_win
       run: |
         $ffmpeg = (Get-Command ffmpeg).Source
+        Write-Host "Found FFmpeg at: $ffmpeg"
         echo "FFMPEG_PATH=$ffmpeg" >> $env:GITHUB_OUTPUT
     
     - name: Get FFmpeg path (Linux/macOS)
@@ -67,17 +68,30 @@ jobs:
       shell: pwsh
       run: |
         $ffmpegPath = "${{ steps.ffmpeg_win.outputs.FFMPEG_PATH }}"
+        Write-Host "Using FFmpeg from: $ffmpegPath"
+        
+        # Verify FFmpeg exists
+        if (-not (Test-Path $ffmpegPath)) {
+            Write-Error "FFmpeg not found at: $ffmpegPath"
+            exit 1
+        }
+        
+        # Build with PyInstaller
         pyinstaller --onefile --name yt-mp3-downloader --add-binary "$ffmpegPath;ffmpeg.exe" main.py
         
-        # Verify FFmpeg was included
+        # Verify executable was created
         if (-not (Test-Path "dist/yt-mp3-downloader.exe")) {
             Write-Error "Executable was not created"
             exit 1
         }
         
-        # List contents of the executable to verify FFmpeg
-        Write-Host "Checking if FFmpeg was included in the build..."
-        pyinstaller --list-contents dist/yt-mp3-downloader.exe
+        # Verify executable size (should be large enough to include FFmpeg)
+        $exeSize = (Get-Item "dist/yt-mp3-downloader.exe").Length
+        Write-Host "Executable size: $exeSize bytes"
+        if ($exeSize -lt 1MB) {
+            Write-Error "Executable seems too small to include FFmpeg"
+            exit 1
+        }
     
     - name: Build executable (Linux/macOS)
       if: matrix.os != 'windows-latest'
