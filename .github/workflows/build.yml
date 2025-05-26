@@ -66,7 +66,18 @@ jobs:
       if: matrix.os == 'windows-latest'
       shell: pwsh
       run: |
-        pyinstaller --onefile --name yt-mp3-downloader --add-binary "${{ steps.ffmpeg_win.outputs.FFMPEG_PATH }};ffmpeg.exe" main.py
+        $ffmpegPath = "${{ steps.ffmpeg_win.outputs.FFMPEG_PATH }}"
+        pyinstaller --onefile --name yt-mp3-downloader --add-binary "$ffmpegPath;ffmpeg.exe" main.py
+        
+        # Verify FFmpeg was included
+        if (-not (Test-Path "dist/yt-mp3-downloader.exe")) {
+            Write-Error "Executable was not created"
+            exit 1
+        }
+        
+        # List contents of the executable to verify FFmpeg
+        Write-Host "Checking if FFmpeg was included in the build..."
+        pyinstaller --list-contents dist/yt-mp3-downloader.exe
     
     - name: Build executable (Linux/macOS)
       if: matrix.os != 'windows-latest'
