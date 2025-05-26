@@ -1,16 +1,42 @@
 # YouTube MP3 Downloader
 
-Python script to download YouTube videos and convert them to MP3.
+Python script to download YouTube videos and convert them to MP3. Organizes playlist downloads into separate folders.
 
-## Requirements
+## Features
 
-- Python 3.6 or higher
-- Dependencies:
-  - pytubefix
-  - pydub
-  - tqdm
+- Download individual videos or entire playlists
+- Automatic playlist folder organization
+- Parallel downloads (up to 5 simultaneous)
+- Automatic retries on failure
+- Configurable audio quality
+- Progress bar and statistics
+- Metadata preservation (title and artist)
+- Automatic filename sanitization
+- Duplicate file detection
 
-## Installation
+## Quick Start
+
+### Using the Executable (Recommended)
+
+1. Go to the [Releases](https://github.com/danielarrais/best-youtube-mp3-downloader/releases) page
+2. Download the executable for your operating system:
+   - Windows: `yt-mp3-downloader-windows.exe`
+   - Linux: `yt-mp3-downloader-linux`
+   - macOS: `yt-mp3-downloader-macos`
+3. Make the file executable (Linux/macOS):
+   ```bash
+   chmod +x yt-mp3-downloader-linux  # or yt-mp3-downloader-macos
+   ```
+4. Run the program:
+   ```bash
+   # Windows
+   yt-mp3-downloader-windows.exe -p "PLAYLIST_URL"
+   
+   # Linux/macOS
+   ./yt-mp3-downloader-linux -p "PLAYLIST_URL"  # or yt-mp3-downloader-macos
+   ```
+
+### Using Python (Alternative)
 
 1. Clone the repository:
 ```bash
@@ -21,6 +47,11 @@ cd best-youtube-mp3-downloader
 2. Install dependencies:
 ```bash
 pip install -r requirements.txt
+```
+
+3. Run the script:
+```bash
+python main.py -p "PLAYLIST_URL"
 ```
 
 ## Usage
@@ -57,18 +88,21 @@ python main.py -p "PLAYLIST_URL" -r 5
 python main.py -f my_musics.txt
 ```
 
-MP3 files will be saved in the `downloads/` folder.
+## File Organization
 
-## Features
+The script organizes downloaded files in the following structure:
 
-- Parallel downloads (up to 5 simultaneous)
-- Automatic retries on failure
-- Configurable audio quality
-- Playlist support
-- Progress bar and statistics
-- Metadata preservation (title and artist)
-- Automatic filename sanitization
-- Duplicate file detection
+```
+downloads/
+  ├── playlist1/          # Playlist downloads are organized in folders
+  │   ├── song1.mp3
+  │   ├── song2.mp3
+  │   └── ...
+  ├── playlist2/
+  │   ├── song1.mp3
+  │   └── ...
+  └── individual_songs.mp3  # Individual downloads go directly in downloads/
+```
 
 ## Troubleshooting
 

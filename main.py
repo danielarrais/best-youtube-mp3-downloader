@@ -69,63 +69,88 @@ def get_skip_reason(url, mp3_path):
         return "file already exists"
     return "unknown error"
 
-def download_with_retry(url, quality, max_retries=3, delay=5):
+def download_with_retry(url, quality, max_retries=3, delay=5, download_dir=None):
     """Attempts to download the video with retries in case of failure"""
     for attempt in range(max_retries):
         try:
-            # Create YouTube object
             yt = YouTube(url)
-            
-            # Get video title
             title = yt.title
             safe_title = sanitize_filename(title)
-            mp3_path = os.path.join(output_folder, f"{safe_title}.mp3")
+            
+            # Use provided download directory or default to output_folder
+            mp3_path = os.path.join(download_dir, f"{safe_title}.mp3") if download_dir else os.path.join(output_folder, f"{safe_title}.mp3")
             
             # Check if file already exists
             if os.path.exists(mp3_path):
-                skip_reason = get_skip_reason(url, mp3_path)
                 return {
-                    "success": True, 
-                    "title": title, 
+                    "success": True,
                     "status": "skipped",
-                    "reason": skip_reason,
-                    "path": mp3_path
+                    "title": title,
+                    "reason": "File already exists"
                 }
-            
-            # Download only the audio stream with best quality
+
+            # Get audio stream
             audio_stream = yt.streams.filter(only_audio=True).first()
             if not audio_stream:
-                raise Exception("No audio stream found")
-                
-            temp_file = audio_stream.download(output_path=output_folder, filename=f"{safe_title}.tmp")
-            
-            # Convert to MP3 using pydub
+                return {
+                    "success": False,
+                    "url": url,
+                    "error": "No audio stream found"
+                }
+
+            # Download and convert
+            temp_file = audio_stream.download()
             audio = AudioSegment.from_file(temp_file)
             
-            # Export with specified quality
-            audio.export(mp3_path, format="mp3", bitrate=quality, 
-                        tags={
-                            "title": title,
-                            "artist": yt.author
-                        })
+            # Convert to MP3 with specified quality
+            audio.export(mp3_path, format="mp3", bitrate=quality)
             
-            # Remove temporary file
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
-                
-            return {"success": True, "title": title, "status": "downloaded"}
+            # Clean up temporary file
+            os.remove(temp_file)
             
-        except (HTTPError, URLError, socket.error) as e:
-            if attempt < max_retries - 1:
-                wait_time = delay + random.uniform(0, 2)  # Add some randomness
-                print(f"\nNetwork error downloading {url}. Attempt {attempt + 1}/{max_retries}")
-                print(f"Waiting {wait_time:.1f} seconds before trying again...")
-                time.sleep(wait_time)
-                continue
-            return {"success": False, "url": url, "error": f"Network error after {max_retries} attempts: {str(e)}"}
+            return {
+                "success": True,
+                "title": title
+            }
             
         except Exception as e:
-            return {"success": False, "url": url, "error": str(e)}
+            if attempt < max_retries - 1:
+                time.sleep(delay)
+            else:
+                return {
+                    "success": False,
+                    "url": url,
+                    "error": str(e)
+                }
+    
+    return {
+        "success": False,
+        "url": url,
+        "error": "Max retries exceeded"
+    }
+
+def get_playlist_name(playlist_url):
+    """Extract playlist name from URL or use a default name."""
+    try:
+        playlist = Playlist(playlist_url)
+        # Sanitize playlist name for filesystem
+        name = "".join(c for c in playlist.title if c.isalnum() or c in (' ', '-', '_')).strip()
+        return name if name else "playlist"
+    except Exception:
+        return "playlist"
+
+def ensure_download_dir(playlist_name=None):
+    """Create and return the download directory path."""
+    base_dir = "downloads"
+    if not os.path.exists(base_dir):
+        os.makedirs(base_dir)
+    
+    if playlist_name:
+        playlist_dir = os.path.join(base_dir, playlist_name)
+        if not os.path.exists(playlist_dir):
+            os.makedirs(playlist_dir)
+        return playlist_dir
+    return base_dir
 
 def main():
     # Parse arguments
@@ -134,8 +159,12 @@ def main():
     # Get URLs from file or playlist
     if args.playlist:
         links = extract_playlist_urls(args.playlist)
+        playlist_name = get_playlist_name(args.playlist)
+        download_dir = ensure_download_dir(playlist_name)
+        print(f"\nDownloading playlist: {playlist_name}")
     else:
         links = read_urls_from_file(args.file)
+        download_dir = ensure_download_dir()
     
     if not links:
         print("No URLs found. Add URLs to the file or provide a valid playlist.")
@@ -151,7 +180,8 @@ def main():
     print(f"\nStarting download with audio quality: {args.quality}")
     print(f"Total URLs found: {total}")
     print(f"Number of attempts per download: {args.retries}")
-    print(f"Wait time between attempts: {args.delay} seconds\n")
+    print(f"Wait time between attempts: {args.delay} seconds")
+    print(f"Download directory: {download_dir}\n")
 
     # Use multithreading for parallel processing
     with tqdm(total=total, desc="Progress") as pbar:
@@ -166,7 +196,8 @@ def main():
                     url, 
                     args.quality,
                     args.retries,
-                    args.delay
+                    args.delay,
+                    download_dir
                 ): url for url in links
             }
             
@@ -195,6 +226,7 @@ def main():
     print(f"⏭ Skipped: {results['skipped']} / {total}")
     print(f"❌ Failed: {results['failed']} / {total}")
     print(f"⏱️ Total time: {elapsed_time:.1f} seconds")
+    print(f"📁 Files saved in: {download_dir}")
 
 if __name__ == "__main__":
     try:
