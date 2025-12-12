@@ -11,29 +11,58 @@ import random
 from urllib.error import HTTPError, URLError
 import socket
 import sys
+import shutil
 
 def get_ffmpeg_path():
-    """Get the path to the embedded ffmpeg binary"""
+    """Get the path to the embedded ffmpeg binary or system ffmpeg"""
     if getattr(sys, 'frozen', False):
         # Running as compiled executable
         base_path = sys._MEIPASS
+        # Determine the correct ffmpeg binary name based on platform
+        if sys.platform == 'win32':
+            ffmpeg_name = 'ffmpeg.exe'
+        else:
+            ffmpeg_name = 'ffmpeg'
+        
+        ffmpeg_path = os.path.join(base_path, ffmpeg_name)
+        
+        # Make sure the binary is executable on Unix-like systems
+        if sys.platform != 'win32' and os.path.exists(ffmpeg_path):
+            os.chmod(ffmpeg_path, 0o755)
+        
+        return ffmpeg_path
     else:
-        # Running as script
+        # Running as script - try to find ffmpeg in project directory first
         base_path = os.path.dirname(os.path.abspath(__file__))
-    
-    # Determine the correct ffmpeg binary name based on platform
-    if sys.platform == 'win32':
-        ffmpeg_name = 'ffmpeg.exe'
-    else:
-        ffmpeg_name = 'ffmpeg'
-    
-    ffmpeg_path = os.path.join(base_path, ffmpeg_name)
-    
-    # Make sure the binary is executable on Unix-like systems
-    if sys.platform != 'win32':
-        os.chmod(ffmpeg_path, 0o755)
-    
-    return ffmpeg_path
+        
+        # Determine the correct ffmpeg binary name based on platform
+        if sys.platform == 'win32':
+            ffmpeg_name = 'ffmpeg.exe'
+        else:
+            ffmpeg_name = 'ffmpeg'
+        
+        ffmpeg_path = os.path.join(base_path, ffmpeg_name)
+        
+        # If ffmpeg exists in project directory, use it
+        if os.path.exists(ffmpeg_path):
+            # Make sure the binary is executable on Unix-like systems
+            if sys.platform != 'win32':
+                os.chmod(ffmpeg_path, 0o755)
+            return ffmpeg_path
+        
+        # Otherwise, try to use system ffmpeg
+        system_ffmpeg = shutil.which('ffmpeg')
+        if system_ffmpeg:
+            return system_ffmpeg
+        
+        # If no ffmpeg found, raise an error
+        raise FileNotFoundError(
+            "FFmpeg not found. Please install FFmpeg:\n"
+            "  - Linux: sudo apt install ffmpeg (or use your package manager)\n"
+            "  - macOS: brew install ffmpeg\n"
+            "  - Windows: Download from https://ffmpeg.org/download.html\n"
+            "Or run: bash scripts/install_ffmpeg.sh"
+        )
 
 # Configure pydub to use the embedded ffmpeg
 AudioSegment.converter = get_ffmpeg_path()
