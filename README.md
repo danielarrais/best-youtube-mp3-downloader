@@ -4,6 +4,8 @@ A free, open-source web application to download and convert YouTube videos to MP
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+<img width="1134" height="690" alt="image" src="https://github.com/user-attachments/assets/165bc6c4-7c89-4b3a-a64d-e44fd129d153" />
+
 ## Features
 
 - 🎵 **YouTube to MP3 Conversion** - Convert any YouTube video to high-quality MP3
