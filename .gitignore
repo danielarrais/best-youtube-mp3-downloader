@@ -1,5 +1,6 @@
 # Pasta de downloads
 downloads/
+temp/
 
 # Arquivos temporários
 *.tmp
@@ -8,12 +9,14 @@ downloads/
 venv/
 env/
 .env/
+.venv/
 
 # Arquivos de cache Python
 __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+.ruff_cache/
 
 # Distribuição / empacotamento
 dist/
@@ -31,4 +34,12 @@ build/
 
 # Arquivos específicos do sistema
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.eslintcache
+
+# Docker
+docker-compose.override.yml

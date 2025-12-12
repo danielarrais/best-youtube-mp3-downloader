@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Cache
+.eslintcache
+
+# Logs
+*.log
+
+# Local env files
+.env.local
+.env.*.local
+
+# Editor
+.vscode/
+*.swp
+*.swo
