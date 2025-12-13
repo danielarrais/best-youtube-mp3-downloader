@@ -16,6 +16,34 @@ def sanitize_filename(filename: str) -> str:
     return re.sub(r'[\\/*?:"<>|]', "_", filename)
 
 
+def is_playlist_url(url: str) -> bool:
+    """Verifica se a URL é de uma playlist (e não um vídeo com playlist)"""
+    # URL de playlist pura: youtube.com/playlist?list=XXX
+    # URL de vídeo em playlist: youtube.com/watch?v=XXX&list=YYY
+    if "youtube.com/playlist" in url:
+        return True
+    # Se tem list= mas não tem v=, é playlist
+    if "list=" in url and "v=" not in url:
+        return True
+    return False
+
+
+def expand_urls(urls: list[str]) -> list[str]:
+    """Expande URLs de playlists para URLs de vídeos individuais"""
+    result = []
+    for url in urls:
+        if is_playlist_url(url):
+            try:
+                playlist_urls = extract_playlist_urls(url)
+                result.extend(playlist_urls)
+            except Exception:
+                # Se falhar, ignora a playlist
+                pass
+        else:
+            result.append(url)
+    return result
+
+
 def get_video_info(url: str) -> VideoInfo:
     """Obtém informações de um vídeo do YouTube"""
     yt = YouTube(url)

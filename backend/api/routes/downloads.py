@@ -2,6 +2,7 @@ import os
 
 from fastapi import APIRouter, HTTPException
 
+from backend.core.youtube import expand_urls
 from backend.models.download import DownloadItem, DownloadRequest, DownloadStatus
 from backend.services.queue_service import queue_service
 from backend.workers.download_worker import cancel_download as cancel_download_task
@@ -11,10 +12,16 @@ router = APIRouter()
 
 @router.post("", response_model=list[DownloadItem])
 async def add_downloads(request: DownloadRequest):
-    """Adiciona URLs à fila de download"""
+    """Adiciona URLs à fila de download (suporta playlists)"""
+    # Expande playlists para vídeos individuais
+    all_urls = expand_urls(request.urls)
+
+    if not all_urls:
+        raise HTTPException(status_code=400, detail="Nenhuma URL válida encontrada")
+
     items = [
         DownloadItem(url=url, quality=request.quality)
-        for url in request.urls
+        for url in all_urls
     ]
     return await queue_service.add_to_queue(items)
 

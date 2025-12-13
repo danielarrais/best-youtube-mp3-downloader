@@ -28,13 +28,14 @@ export function UrlInput({ onSubmit, autoDownload, onAutoDownloadChange }: UrlIn
   return (
     <form onSubmit={handleSubmit} className="bg-gray-800 rounded-lg p-4 space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-300 mb-1">
           {t.urlsLabel}
         </label>
+        <p className="text-xs text-gray-500 mb-2">{t.urlsHint}</p>
         <textarea
           value={urls}
           onChange={(e) => setUrls(e.target.value)}
-          placeholder={`${t.urlsPlaceholder}\n${t.urlsPlaceholder}`}
+          placeholder={t.urlsPlaceholder}
           className="w-full h-32 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-red-500"
         />
       </div>

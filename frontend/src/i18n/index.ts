@@ -11,6 +11,7 @@ export interface Translations {
 
   // UrlInput
   urlsLabel: string;
+  urlsHint: string;
   urlsPlaceholder: string;
   quality: string;
   addToQueue: string;
@@ -49,7 +50,8 @@ export const translations: Record<Language, Translations> = {
     completed: 'Concluído',
     failed: 'Falhas',
     urlsLabel: 'URLs do YouTube (uma por linha)',
-    urlsPlaceholder: 'https://www.youtube.com/watch?v=...',
+    urlsHint: 'Aceita vídeos individuais ou playlists',
+    urlsPlaceholder: 'https://www.youtube.com/watch?v=... ou playlist?list=...',
     quality: 'Qualidade',
     addToQueue: 'Adicionar à Fila',
     autoDownload: 'Download automático ao concluir',
@@ -79,7 +81,8 @@ export const translations: Record<Language, Translations> = {
     completed: 'Completed',
     failed: 'Failed',
     urlsLabel: 'YouTube URLs (one per line)',
-    urlsPlaceholder: 'https://www.youtube.com/watch?v=...',
+    urlsHint: 'Supports individual videos or playlists',
+    urlsPlaceholder: 'https://www.youtube.com/watch?v=... or playlist?list=...',
     quality: 'Quality',
     addToQueue: 'Add to Queue',
     autoDownload: 'Auto download when complete',
