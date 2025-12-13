@@ -1,45 +1,27 @@
-# Pasta de downloads
+# Downloads
 downloads/
-temp/
 
-# Arquivos temporários
+# Temp
+temp/
 *.tmp
 
-# Ambiente virtual
-venv/
-env/
-.env/
-.venv/
-
-# Arquivos de cache Python
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
-.pytest_cache/
+.venv/
 .ruff_cache/
 
-# Distribuição / empacotamento
-dist/
-build/
-*.egg-info/
+# Node
+frontend/node_modules/
+frontend/dist/
 
-# Arquivos de IDE
+# IDE
 .idea/
 .vscode/
 *.swp
-*.swo
 
-# Logs
-*.log
-
-# Arquivos específicos do sistema
+# System
 .DS_Store
-Thumbs.db
-
-# Node / Frontend
-frontend/node_modules/
-frontend/dist/
-frontend/.eslintcache
 
 # Docker
 docker-compose.override.yml

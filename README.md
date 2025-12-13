@@ -56,21 +56,6 @@ docker compose up -d
 | Audio | FFmpeg, pytubefix |
 | Deploy | Docker, Docker Compose, Nginx |
 
-## CLI Usage (Standalone)
-
-You can also use the original CLI tool without Docker:
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Download from a file with URLs
-python main.py -f musics.txt -q 192k
-
-# Download a playlist
-python main.py -p "PLAYLIST_URL" -q 320k
-```
-
 ## Environment Variables
 
 | Variable | Default | Description |

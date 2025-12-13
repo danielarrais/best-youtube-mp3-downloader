@@ -36,7 +36,10 @@ async def process_download(
         if progress_callback:
             await progress_callback(item)
 
-        # Callbacks de progresso
+        # Fila para comunicar progresso da thread para o asyncio
+        progress_queue: asyncio.Queue = asyncio.Queue()
+
+        # Callbacks de progresso (executados na thread)
         def on_download_progress(percent, downloaded, total, speed):
             item.progress = DownloadProgress(
                 percent=percent,
@@ -44,21 +47,52 @@ async def process_download(
                 total_bytes=total,
                 speed=f"{speed / 1024:.1f} KB/s" if speed > 0 else ""
             )
+            # Envia para a fila de forma thread-safe
+            loop.call_soon_threadsafe(progress_queue.put_nowait, ("download", item.progress))
 
         def on_convert_progress(percent):
             item.status = DownloadStatus.CONVERTING
             item.progress.percent = percent
+            loop.call_soon_threadsafe(progress_queue.put_nowait, ("convert", percent))
 
-        # Executar download em thread separada (pode ser cancelado)
-        result = await loop.run_in_executor(
-            executor,
-            lambda: download_and_convert(
-                url=item.url,
-                quality=item.quality,
-                download_callback=on_download_progress,
-                convert_callback=on_convert_progress
+        # Task para processar atualizações de progresso
+        async def process_progress():
+            last_update = 0
+            while True:
+                try:
+                    msg = await asyncio.wait_for(progress_queue.get(), timeout=0.5)
+                    # Limitar updates a cada 500ms
+                    now = asyncio.get_event_loop().time()
+                    if now - last_update >= 0.5:
+                        await queue_service.update_item(item.id, item)
+                        if progress_callback:
+                            await progress_callback(item)
+                        last_update = now
+                except asyncio.TimeoutError:
+                    continue
+                except asyncio.CancelledError:
+                    break
+
+        # Iniciar task de progresso
+        progress_task = asyncio.create_task(process_progress())
+
+        try:
+            # Executar download em thread separada
+            result = await loop.run_in_executor(
+                executor,
+                lambda: download_and_convert(
+                    url=item.url,
+                    quality=item.quality,
+                    download_callback=on_download_progress,
+                    convert_callback=on_convert_progress
+                )
             )
-        )
+        finally:
+            progress_task.cancel()
+            try:
+                await progress_task
+            except asyncio.CancelledError:
+                pass
 
         if result.success:
             if result.skipped:
