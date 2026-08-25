@@ -2,7 +2,8 @@
 
 Desktop application built with Go, Wails, and React for downloading YouTube
 videos and playlists as MP3 files or their available video streams. The queue,
-output directory, quality, and language are persisted between restarts.
+download settings, language, theme, and desktop parallel download limit are
+persisted between restarts.
 
 The same frontend can also run as a web application. The desktop version uses
 the native Wails bridge, while the web version communicates with the Go backend
@@ -91,6 +92,17 @@ limits can prevent a format from being listed or downloaded. The client retries
 temporary transport failures, but an HTTP 429 that persists after those retries
 must be retried later or from a network that is not rate-limited.
 
+## Parallel downloads
+
+The desktop application can process multiple queued downloads at the same time.
+The default value is based on the number of CPU cores and can be changed in the
+desktop settings. The value is clamped to a safe range from `1` to `8` parallel
+downloads.
+
+The web version does not expose this control in the UI. Its effective limit is
+controlled by the `MAX_PARALLEL_DOWNLOADS` environment variable, defaults to `2`,
+and uses the same `1` to `8` safe range.
+
 ## Web with Docker
 
 The image contains the backend, compiled frontend, a checksum-verified
@@ -114,8 +126,8 @@ docker compose pull
 docker compose up -d
 ```
 
-Open `http://localhost:8080`. Completed MP3 files can be downloaded through the
-browser and are also stored in the local `downloads/` directory.
+Open `http://localhost:8081`. Completed audio and video files can be downloaded
+through the browser and are also stored in the local `downloads/` directory.
 
 The `.env` file can override the image, tag, published port, and local download
 directory. The application settings and persisted queue are stored separately in
@@ -125,8 +137,8 @@ the `/data` volume:
 | --- | --- | --- |
 | `DOCKER_IMAGE` | `danielarrais/youtube-mp3-downloader` | Docker Hub repository. |
 | `DOCKER_TAG` | `latest` | Image tag, for example `1.0.16`. |
-| `HOST_PORT` | `8080` | Port published on the host. |
-| `DOWNLOADS_PATH` | `./downloads` | Host directory that receives completed MP3 files. |
+| `HOST_PORT` | `8081` | Port published on the host. |
+| `DOWNLOADS_PATH` | `./downloads` | Host directory that receives completed audio and video files. |
 
 To store settings, queue, and cache in a host directory instead of a named Docker
 volume, replace the `/data` mount in `compose.yaml`:
@@ -174,6 +186,7 @@ docker run -d \
   -e WEB_ADDR=:8080 \
   -e DATA_DIR=/data \
   -e DOWNLOAD_DIR=/downloads \
+  -e MAX_PARALLEL_DOWNLOADS=2 \
   -e HEALTHCHECK_URL=http://127.0.0.1:8080/healthz \
   -v youtube-mp3-data:/data \
   -v "$(pwd)/downloads:/downloads" \
@@ -186,7 +199,8 @@ docker run -d \
 | --- | --- | --- |
 | `WEB_ADDR` | `:8080` | Address and port on which the HTTP server listens. |
 | `DATA_DIR` | `/data` | Directory for configuration, persisted queue, and temporary cache. |
-| `DOWNLOAD_DIR` | `/downloads` | Directory where completed MP3 files are written. |
+| `DOWNLOAD_DIR` | `/downloads` | Directory where completed audio and video files are written. |
+| `MAX_PARALLEL_DOWNLOADS` | `2` | Maximum number of downloads processed at the same time in web mode, clamped from `1` to `8`. |
 | `HEALTHCHECK_URL` | `http://127.0.0.1:8080/healthz` | Internal URL used by the image health check. |
 
 When changing `DATA_DIR` or `DOWNLOAD_DIR`, update the corresponding volume
