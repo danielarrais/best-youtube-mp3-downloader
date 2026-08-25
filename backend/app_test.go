@@ -278,3 +278,19 @@ func TestSaveConfigDefaultsInvalidQuality(t *testing.T) {
 		t.Fatalf("SaveConfig() theme = %q, want %q", config.Theme, defaultTheme)
 	}
 }
+
+func TestAddFormatSelectionErrorsAsFailedItems(t *testing.T) {
+	app := newPersistenceTestApp(t)
+	audio := app.AddAudioDownloads([]AudioDownloadRequest{{URL: "https://youtu.be/audio", Error: "audio error"}}, "192k")
+	video := app.AddVideoDownloads([]VideoDownloadRequest{{URL: "https://youtu.be/video", Error: "video error"}})
+
+	if len(audio) != 1 || audio[0].Status != StatusFailed || audio[0].Error != "audio error" {
+		t.Fatalf("audio failed item = %#v", audio)
+	}
+	if len(video) != 1 || video[0].Status != StatusFailed || video[0].Error != "video error" {
+		t.Fatalf("video failed item = %#v", video)
+	}
+	if stats := app.GetStats(); stats.Failed != 2 || stats.Pending != 0 {
+		t.Fatalf("stats = %#v", stats)
+	}
+}

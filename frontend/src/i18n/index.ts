@@ -16,6 +16,8 @@ export interface Translations {
   quality: string;
   videoFormat: string;
   videoQuality: string;
+  askAudioQuality: string;
+  askVideoQuality: string;
   fileDeletion: string;
   fileDeletionDelete: string;
   fileDeletionAsk: string;
@@ -93,9 +95,11 @@ export const translations: Record<Language, Translations> = {
     urlsLabel: 'Links do YouTube e playlists',
     urlsHint: 'Aceita vídeos individuais ou playlists',
     urlsPlaceholder: 'https://www.youtube.com/watch?v=... ou playlist?list=...',
-    quality: 'Qualidade de áudio',
+    quality: 'Bitrate alvo do áudio',
     videoFormat: 'Formato de vídeo padrão',
     videoQuality: 'Qualidade de vídeo alvo',
+    askAudioQuality: 'Sempre perguntar a qualidade do áudio',
+    askVideoQuality: 'Sempre perguntar a qualidade do vídeo',
     fileDeletion: 'Ao remover downloads',
     fileDeletionDelete: 'Apagar do disco',
     fileDeletionAsk: 'Perguntar',
@@ -165,9 +169,11 @@ export const translations: Record<Language, Translations> = {
     urlsLabel: 'YouTube links and playlists',
     urlsHint: 'Supports individual videos or playlists',
     urlsPlaceholder: 'https://www.youtube.com/watch?v=... or playlist?list=...',
-    quality: 'Audio quality',
+    quality: 'Target audio bitrate',
     videoFormat: 'Default video format',
     videoQuality: 'Target video quality',
+    askAudioQuality: 'Always ask for audio quality',
+    askVideoQuality: 'Always ask for video quality',
     fileDeletion: 'When removing downloads',
     fileDeletionDelete: 'Delete from disk',
     fileDeletionAsk: 'Ask',

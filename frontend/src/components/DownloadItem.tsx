@@ -10,7 +10,21 @@ function itemQualityLabel(item: DownloadItemType) {
     const resolution = item.video_format?.resolution || item.quality;
     return resolution ? `${extension} ${resolution}` : extension;
   }
-  return item.quality ? `MP3 ${item.quality}` : 'MP3';
+  const bitrate = item.audio_format?.bitrate ? `${item.audio_format.bitrate}k` : item.quality;
+  const codec = item.audio_format?.audio_codec || item.audio_format?.container;
+  return codec && bitrate ? `MP3 • ${codec.toUpperCase()} ${bitrate}` : bitrate ? `MP3 ${bitrate}` : 'MP3';
+}
+
+function formatFileSize(size?: number) {
+  if (!size || size <= 0) return '';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = size;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex++;
+  }
+  return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
 interface DownloadItemProps {
@@ -26,6 +40,7 @@ export function DownloadItem({ item, onCancel, onRetry, onDelete }: DownloadItem
   const canCancel = ['pending', 'fetching_info', 'downloading', 'converting'].includes(item.status);
   const canRetry = ['failed', 'cancelled'].includes(item.status);
   const canDownload = ['completed', 'skipped'].includes(item.status);
+  const fileSize = ['completed', 'skipped'].includes(item.status) ? formatFileSize(item.file_size) : '';
   const linkClassName = 'text-sm text-blue-600 underline-offset-2 hover:underline dark:text-blue-400';
 
   return (
@@ -102,6 +117,11 @@ export function DownloadItem({ item, onCancel, onRetry, onDelete }: DownloadItem
             </div>
 
             <div className="flex flex-row flex-wrap items-center justify-end gap-2">
+              {fileSize && (
+                <span className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-500 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-300">
+                  {fileSize}
+                </span>
+              )}
               {canCancel && (
                 <button
                   type="button"

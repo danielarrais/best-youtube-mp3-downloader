@@ -256,7 +256,7 @@ func TestWebConfigKeepsServerDownloadDirectory(t *testing.T) {
 	app := newWebTestApp(t)
 	handler := newWebHandler(app, testAssets(), app.config.DownloadDir)
 	request := httptest.NewRequest(http.MethodPut, "/api/config", strings.NewReader(
-		`{"download_dir":"/tmp/other","quality":"320k","video_container":"webm","video_quality":"720p","file_deletion":"keep","language":"en-US","theme":"light"}`,
+		`{"download_dir":"/tmp/other","quality":"160k","audio_bitrate_target":"160k","video_container":"webm","video_quality":"720p","ask_audio_quality":false,"ask_video_quality":false,"file_deletion":"keep","language":"en-US","theme":"light"}`,
 	))
 	response := httptest.NewRecorder()
 
@@ -272,8 +272,11 @@ func TestWebConfigKeepsServerDownloadDirectory(t *testing.T) {
 	if config.DownloadDir != app.config.DownloadDir {
 		t.Fatalf("download dir = %q, want %q", config.DownloadDir, app.config.DownloadDir)
 	}
-	if config.Quality != "320k" {
+	if config.Quality != "160k" || config.AudioBitrateTarget != "160k" {
 		t.Fatalf("quality = %q", config.Quality)
+	}
+	if config.AskAudioQuality || config.AskVideoQuality {
+		t.Fatalf("ask quality flags = %#v", config)
 	}
 	if config.VideoContainer != "webm" || config.VideoQuality != "720p" || config.FileDeletion != FileDeletionKeep {
 		t.Fatalf("video preferences = %#v", config)
@@ -292,13 +295,16 @@ func newWebTestApp(t *testing.T) *App {
 	}
 	app := NewAppWithPaths(dataDir, downloadDir)
 	app.config = Config{
-		DownloadDir:    downloadDir,
-		Quality:        "192k",
-		VideoContainer: defaultVideoContainer,
-		VideoQuality:   defaultVideoQuality,
-		FileDeletion:   FileDeletionAsk,
-		Language:       "pt-BR",
-		Theme:          defaultTheme,
+		DownloadDir:        downloadDir,
+		Quality:            "192k",
+		AudioBitrateTarget: "192k",
+		VideoContainer:     defaultVideoContainer,
+		VideoQuality:       defaultVideoQuality,
+		AskAudioQuality:    true,
+		AskVideoQuality:    true,
+		FileDeletion:       FileDeletionAsk,
+		Language:           "pt-BR",
+		Theme:              defaultTheme,
 	}
 	return app
 }

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from '../hooks/useTranslation';
 import { useTheme } from '../hooks/useTheme';
 import { api } from '../services/api';
-import { AudioDownloadRequest, Config, PlaylistInfo, VideoDownloadRequest, VideoFormat, VideoInfo } from '../types';
+import { AudioDownloadRequest, AudioFormat, Config, PlaylistInfo, VideoDownloadRequest, VideoFormat, VideoInfo } from '../types';
 import { PlaylistLoadState, PlaylistModal } from './PlaylistModal';
 import { SettingsModal } from './SettingsModal';
 
@@ -18,6 +18,7 @@ const cleanYouTubeUrl = (value: string) => value.trim().split('&', 1)[0];
 
 type VideoContainer = Config['video_container'];
 type VideoQuality = Config['video_quality'];
+type AudioBitrateTarget = Config['audio_bitrate_target'];
 
 const videoQualityValue = (quality: string) => Number(quality.match(/\d+/)?.[0]) || 0;
 
@@ -45,6 +46,21 @@ export function preferredVideoFormat(
   })[0];
 }
 
+const audioBitrateValue = (quality: string) => Number(quality.match(/\d+/)?.[0]) || 0;
+
+export function preferredAudioFormat(formats: AudioFormat[], targetBitrate: AudioBitrateTarget) {
+  const target = audioBitrateValue(targetBitrate);
+  return [...formats].sort((left, right) => {
+    const leftBitrate = left.bitrate || 0;
+    const rightBitrate = right.bitrate || 0;
+    const leftDistance = Math.abs(leftBitrate - target);
+    const rightDistance = Math.abs(rightBitrate - target);
+    if (leftDistance !== rightDistance) return leftDistance - rightDistance;
+    if (leftBitrate !== rightBitrate) return rightBitrate - leftBitrate;
+    return left.label.localeCompare(right.label);
+  })[0];
+}
+
 interface VideoSelection {
   url: string;
   info?: VideoInfo;
@@ -63,9 +79,11 @@ export function UrlInput({ onSubmitAudio, onSubmitVideo, settingsOpen, onOpenSet
   const { t, language, setLanguage } = useTranslation();
   const { theme, setTheme } = useTheme();
   const [urls, setUrls] = useState('');
-  const [quality, setQuality] = useState('192k');
+  const [audioBitrateTarget, setAudioBitrateTarget] = useState<AudioBitrateTarget>('192k');
   const [videoContainer, setVideoContainer] = useState<VideoContainer>('mp4');
   const [videoQuality, setVideoQuality] = useState<VideoQuality>('1080p');
+  const [askAudioQuality, setAskAudioQuality] = useState(true);
+  const [askVideoQuality, setAskVideoQuality] = useState(true);
   const [fileDeletion, setFileDeletion] = useState<Config['file_deletion']>('ask');
   const [mediaType, setMediaType] = useState<'audio' | 'video'>('audio');
   const [downloadDir, setDownloadDir] = useState('---');
@@ -80,9 +98,11 @@ export function UrlInput({ onSubmitAudio, onSubmitVideo, settingsOpen, onOpenSet
     api.getConfig().then(config => {
       if (config) {
         setDownloadDir(config.download_dir || '---');
-        setQuality(config.quality || '192k');
+        setAudioBitrateTarget(config.audio_bitrate_target || '192k');
         setVideoContainer(config.video_container || 'mp4');
         setVideoQuality(config.video_quality || '1080p');
+        setAskAudioQuality(config.ask_audio_quality ?? true);
+        setAskVideoQuality(config.ask_video_quality ?? true);
         setFileDeletion(config.file_deletion || 'ask');
         setTheme(config.theme || 'dark');
       }
@@ -131,7 +151,7 @@ export function UrlInput({ onSubmitAudio, onSubmitVideo, settingsOpen, onOpenSet
     const playlistUrls = [...new Set(urlList.filter(isPlaylistUrl))];
     const videoUrls = urlList.filter(url => !isPlaylistUrl(url));
     if (playlistUrls.length === 0) {
-      submitURLs(videoUrls);
+      void submitURLs(videoUrls);
       setUrls('');
       return;
     }
@@ -163,38 +183,50 @@ export function UrlInput({ onSubmitAudio, onSubmitVideo, settingsOpen, onOpenSet
     });
   };
 
-  const submitURLs = (videoUrls: string[]) => {
+  const submitURLs = async (videoUrls: string[]) => {
     if (mediaType === 'audio') {
-      setAudioSelections(videoUrls.map(url => ({ url })));
-      videoUrls.forEach(url => {
-        api.getVideoFormats(url)
-          .then(info => {
-            setAudioSelections(current => current?.map(selection => selection.url === url
-              ? { url, info, selectedFormatID: info.audio_formats?.[0]?.format_id }
-              : selection) || null);
-          })
-          .catch(error => {
-            setAudioSelections(current => current?.map(selection => selection.url === url
-              ? { url, error: error instanceof Error ? error.message : String(error) }
-              : selection) || null);
-          });
-      });
+      if (askAudioQuality) {
+        setAudioSelections(videoUrls.map(url => ({ url })));
+        const selections = await Promise.all(videoUrls.map(async url => {
+          try {
+            const info = await api.getVideoFormats(url);
+            const selectedFormatID = preferredAudioFormat(info.audio_formats || [], audioBitrateTarget)?.format_id;
+            return {
+              url,
+              info,
+              selectedFormatID,
+              error: selectedFormatID ? undefined : 'Nenhuma fonte de audio disponivel.',
+            };
+          } catch (error) {
+            return { url, error: error instanceof Error ? error.message : String(error) };
+          }
+        }));
+        setAudioSelections(selections);
+        return;
+      }
+      onSubmitAudio(videoUrls.map(url => ({ url })), audioBitrateTarget);
       return;
     }
-    setVideoSelections(videoUrls.map(url => ({ url })));
-    videoUrls.forEach(url => {
-      api.getVideoFormats(url)
-        .then(info => {
-          setVideoSelections(current => current?.map(selection => selection.url === url
-            ? { url, info, selectedItag: preferredVideoFormat(info.formats, videoContainer, videoQuality)?.video_itag }
-            : selection) || null);
-        })
-        .catch(error => {
-          setVideoSelections(current => current?.map(selection => selection.url === url
-            ? { url, error: error instanceof Error ? error.message : String(error) }
-            : selection) || null);
-        });
-    });
+    if (askVideoQuality) {
+      setVideoSelections(videoUrls.map(url => ({ url })));
+      const selections = await Promise.all(videoUrls.map(async url => {
+        try {
+          const info = await api.getVideoFormats(url);
+          const selectedItag = preferredVideoFormat(info.formats, videoContainer, videoQuality)?.video_itag;
+          return {
+            url,
+            info,
+            selectedItag,
+            error: selectedItag ? undefined : 'Nenhum formato de video disponivel.',
+          };
+        } catch (error) {
+          return { url, error: error instanceof Error ? error.message : String(error) };
+        }
+      }));
+      setVideoSelections(selections);
+      return;
+    }
+    onSubmitVideo(videoUrls.map(url => ({ url })));
   };
 
   const togglePlaylistVideo = (key: string) => {
@@ -223,7 +255,7 @@ export function UrlInput({ onSubmitAudio, onSubmitVideo, settingsOpen, onOpenSet
         .filter(video => video.available && selectedVideoKeys.has(`${item.playlist!.id}:${video.index}`))
         .map(video => video.url) || []
     ) || [];
-    submitURLs([...directVideoUrls, ...selectedUrls]);
+    void submitURLs([...directVideoUrls, ...selectedUrls]);
     setUrls('');
     setPlaylistStates(null);
     setSelectedVideoKeys(new Set());
@@ -237,25 +269,32 @@ export function UrlInput({ onSubmitAudio, onSubmitVideo, settingsOpen, onOpenSet
 
   const handleSaveSettings = async (
     newDownloadDir: string,
-    newQuality: string,
+    newQuality: AudioBitrateTarget,
     newVideoContainer: VideoContainer,
     newVideoQuality: VideoQuality,
+    newAskAudioQuality: boolean,
+    newAskVideoQuality: boolean,
     newLanguage: 'pt-BR' | 'en-US',
     newTheme: Config['theme'],
   ) => {
     const config = await api.saveConfig({
       download_dir: newDownloadDir,
       quality: newQuality,
+      audio_bitrate_target: newQuality,
       video_container: newVideoContainer,
       video_quality: newVideoQuality,
+      ask_audio_quality: newAskAudioQuality,
+      ask_video_quality: newAskVideoQuality,
       file_deletion: fileDeletion,
       language: newLanguage,
       theme: newTheme,
     });
     setDownloadDir(config?.download_dir || newDownloadDir);
-    setQuality(config?.quality || newQuality);
+    setAudioBitrateTarget(config?.audio_bitrate_target || newQuality);
     setVideoContainer(config?.video_container || newVideoContainer);
     setVideoQuality(config?.video_quality || newVideoQuality);
+    setAskAudioQuality(config?.ask_audio_quality ?? newAskAudioQuality);
+    setAskVideoQuality(config?.ask_video_quality ?? newAskVideoQuality);
     setFileDeletion(config?.file_deletion || fileDeletion);
     setLanguage((config?.language || newLanguage) as 'pt-BR' | 'en-US');
     setTheme(config?.theme || newTheme);
@@ -436,7 +475,7 @@ export function UrlInput({ onSubmitAudio, onSubmitVideo, settingsOpen, onOpenSet
 		<div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
 		  <div className="max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-gray-700 dark:bg-gray-800 sm:p-5">
 		    <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Escolha a fonte de audio de cada video</h2>
-		    <p className="text-sm text-slate-600 dark:text-gray-300">A qualidade final do MP3 continua sendo {quality}.</p>
+		    <p className="text-sm text-slate-600 dark:text-gray-300">Bitrate alvo do MP3: {audioBitrateTarget}.</p>
 		    {audioSelections.map(selection => (
 		      <div key={selection.url} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-900/50 sm:flex-row">
 		        {selection.info?.thumbnail_url ? (
@@ -482,7 +521,7 @@ export function UrlInput({ onSubmitAudio, onSubmitVideo, settingsOpen, onOpenSet
 		            const format = selection.info?.audio_formats?.find(value => value.format_id === selection.selectedFormatID);
 		            return format ? [{ url: selection.url, format }] : [];
 		          });
-		          onSubmitAudio(requests, quality);
+		          onSubmitAudio(requests, audioBitrateTarget);
 		          setAudioSelections(null);
 		        }}
 		        className="w-full rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white enabled:hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
@@ -497,9 +536,11 @@ export function UrlInput({ onSubmitAudio, onSubmitVideo, settingsOpen, onOpenSet
       {settingsOpen && (
         <SettingsModal
           downloadDir={downloadDir}
-          quality={quality}
+          quality={audioBitrateTarget}
+          askAudioQuality={askAudioQuality}
           videoContainer={videoContainer}
           videoQuality={videoQuality}
+          askVideoQuality={askVideoQuality}
           language={language as 'pt-BR' | 'en-US'}
           theme={theme}
           onThemePreview={setTheme}

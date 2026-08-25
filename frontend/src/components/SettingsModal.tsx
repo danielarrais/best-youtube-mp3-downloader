@@ -6,9 +6,11 @@ import { Language } from '../i18n';
 
 interface SettingsModalProps {
   downloadDir: string;
-  quality: string;
+  quality: '128k' | '160k' | '192k';
+  askAudioQuality: boolean;
   videoContainer: 'mp4' | 'webm' | 'mkv';
   videoQuality: '144p' | '240p' | '360p' | '480p' | '720p' | '1080p' | '1440p' | '2160p';
+  askVideoQuality: boolean;
   language: Language;
   theme: Theme;
   onThemePreview: (theme: Theme) => void;
@@ -16,9 +18,11 @@ interface SettingsModalProps {
   onClose: () => void;
   onSave: (
     downloadDir: string,
-    quality: string,
+    quality: '128k' | '160k' | '192k',
     videoContainer: 'mp4' | 'webm' | 'mkv',
     videoQuality: '144p' | '240p' | '360p' | '480p' | '720p' | '1080p' | '1440p' | '2160p',
+    askAudioQuality: boolean,
+    askVideoQuality: boolean,
     language: Language,
     theme: Theme,
   ) => Promise<void>;
@@ -28,8 +32,10 @@ interface SettingsModalProps {
 export function SettingsModal({
   downloadDir,
   quality,
+  askAudioQuality,
   videoContainer,
   videoQuality,
+  askVideoQuality,
   language,
   theme,
   onThemePreview,
@@ -43,6 +49,8 @@ export function SettingsModal({
   const [selectedQuality, setSelectedQuality] = useState(quality);
   const [selectedVideoContainer, setSelectedVideoContainer] = useState(videoContainer);
   const [selectedVideoQuality, setSelectedVideoQuality] = useState(videoQuality);
+  const [selectedAskAudioQuality, setSelectedAskAudioQuality] = useState(askAudioQuality);
+  const [selectedAskVideoQuality, setSelectedAskVideoQuality] = useState(askVideoQuality);
   const [selectedLanguage, setSelectedLanguage] = useState(language);
   const [selectedTheme, setSelectedTheme] = useState(theme);
   const [saving, setSaving] = useState(false);
@@ -80,6 +88,8 @@ export function SettingsModal({
         selectedQuality,
         selectedVideoContainer,
         selectedVideoQuality,
+        selectedAskAudioQuality,
+        selectedAskVideoQuality,
         selectedLanguage,
         selectedTheme,
       );
@@ -172,19 +182,37 @@ export function SettingsModal({
                 <option key={value} value={value}>{value}</option>
               ))}
             </select>
+            <label className="flex items-start gap-3 rounded-lg border border-slate-300 bg-slate-50 px-3 py-3 text-sm text-slate-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+              <input
+                type="checkbox"
+                checked={selectedAskVideoQuality}
+                onChange={(event) => setSelectedAskVideoQuality(event.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-red-600"
+              />
+              <span>{t.askVideoQuality}</span>
+            </label>
           </div>
 
           <div className="space-y-2">
             <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">{t.quality}</label>
             <select
               value={selectedQuality}
-              onChange={(event) => setSelectedQuality(event.target.value)}
+              onChange={(event) => setSelectedQuality(event.target.value as typeof selectedQuality)}
               className="app-select w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-red-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             >
               <option value="128k">128 kbps</option>
+              <option value="160k">160 kbps</option>
               <option value="192k">192 kbps</option>
-              <option value="320k">320 kbps</option>
             </select>
+            <label className="flex items-start gap-3 rounded-lg border border-slate-300 bg-slate-50 px-3 py-3 text-sm text-slate-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+              <input
+                type="checkbox"
+                checked={selectedAskAudioQuality}
+                onChange={(event) => setSelectedAskAudioQuality(event.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-red-600"
+              />
+              <span>{t.askAudioQuality}</span>
+            </label>
           </div>
 
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}

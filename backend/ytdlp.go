@@ -82,6 +82,7 @@ func runYTDLPDownload(ctx context.Context, request ytDLPDownloadRequest, onProgr
 		strategyName := ytDLPStrategyName(strategy)
 		args := append(buildYTDLPBaseArgs(), strategy...)
 		args = append(args,
+			"--progress",
 			"--newline",
 			"--progress-template", "download:%(progress._percent_str)s|%(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress.speed)s|%(progress.eta)s",
 			"--print", "after_move:filepath",
@@ -154,6 +155,7 @@ func execYTDLP(ctx context.Context, ytDLPPath string, args []string, onProgress 
 			if onProgress != nil {
 				if progress, ok := parseYTDLPProgress(line); ok {
 					onProgress(progress)
+					continue
 				}
 			}
 			actualPath = line
@@ -211,9 +213,16 @@ func inferOutputPathFromTemplate(args []string) string {
 
 func parseYTDLPProgress(line string) (mediaDownloadProgress, bool) {
 	if !strings.HasPrefix(line, "download:") {
+		if strings.Contains(line, "|") {
+			return parseYTDLPProgressTemplateFields(line)
+		}
 		return parseYTDLPDownloadLine(line)
 	}
-	parts := strings.SplitN(strings.TrimPrefix(line, "download:"), "|", 6)
+	return parseYTDLPProgressTemplateFields(strings.TrimPrefix(line, "download:"))
+}
+
+func parseYTDLPProgressTemplateFields(value string) (mediaDownloadProgress, bool) {
+	parts := strings.SplitN(value, "|", 6)
 	if len(parts) != 6 {
 		return mediaDownloadProgress{}, false
 	}
@@ -270,7 +279,11 @@ func parseProgressInt(value string) int64 {
 		return 0
 	}
 	parsed, _ := strconv.ParseInt(trimmed, 10, 64)
-	return parsed
+	if parsed > 0 {
+		return parsed
+	}
+	floatValue, _ := strconv.ParseFloat(trimmed, 64)
+	return int64(floatValue)
 }
 
 func sanitizeYTDLPField(value string) string {

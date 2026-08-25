@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -23,6 +24,11 @@ import (
 )
 
 var invalidFilenameCharacters = regexp.MustCompile(`[\\/*?:"<>|]`)
+
+var (
+	ffmpegDurationPattern = regexp.MustCompile(`Duration: (\d+):(\d+):(\d+(?:\.\d+)?)`)
+	ffmpegProgressPattern = regexp.MustCompile(`out_time_ms=(\d+)`)
+)
 
 type MusicMetadata struct {
 	Song     string
@@ -782,6 +788,78 @@ func videoHeight(resolution string) int {
 	return value
 }
 
+func preferredAudioFormat(formats []AudioFormat, targetBitrate string) (AudioFormat, bool) {
+	if len(formats) == 0 {
+		return AudioFormat{}, false
+	}
+	target := audioBitrateValue(targetBitrate)
+	selected := formats[0]
+	for _, format := range formats[1:] {
+		selectedDistance := absInt(selected.Bitrate - target)
+		formatDistance := absInt(format.Bitrate - target)
+		if formatDistance < selectedDistance || (formatDistance == selectedDistance && format.Bitrate > selected.Bitrate) {
+			selected = format
+		}
+	}
+	return selected, true
+}
+
+func preferredVideoFormat(formats []VideoFormat, targetContainer, targetQuality string) (VideoFormat, bool) {
+	if len(formats) == 0 {
+		return VideoFormat{}, false
+	}
+	candidates := make([]VideoFormat, 0, len(formats))
+	for _, format := range formats {
+		if format.Container == targetContainer {
+			candidates = append(candidates, format)
+		}
+	}
+	if len(candidates) == 0 {
+		candidates = formats
+	}
+	target := videoHeight(targetQuality)
+	selected := candidates[0]
+	for _, format := range candidates[1:] {
+		if betterVideoFormat(format, selected, target) {
+			selected = format
+		}
+	}
+	return selected, true
+}
+
+func betterVideoFormat(candidate, selected VideoFormat, target int) bool {
+	candidateHeight := videoHeight(candidate.Resolution)
+	selectedHeight := videoHeight(selected.Resolution)
+	candidateBelow := candidateHeight <= target
+	selectedBelow := selectedHeight <= target
+	if candidateBelow != selectedBelow {
+		return candidateBelow
+	}
+	if candidateHeight != selectedHeight {
+		if candidateBelow {
+			return candidateHeight > selectedHeight
+		}
+		return candidateHeight < selectedHeight
+	}
+	if candidate.FPS != selected.FPS {
+		return candidate.FPS > selected.FPS
+	}
+	return candidate.Size > selected.Size
+}
+
+func audioBitrateValue(value string) int {
+	bitrate := strings.TrimSuffix(strings.ToLower(value), "k")
+	result, _ := strconv.Atoi(bitrate)
+	return result
+}
+
+func absInt(value int) int {
+	if value < 0 {
+		return -value
+	}
+	return value
+}
+
 func videoFormatLabel(format VideoFormat) string {
 	label := format.Resolution
 	if format.FPS > 0 {
@@ -1030,6 +1108,10 @@ func shouldFallbackToYTDLP(err error) bool {
 }
 
 func ConvertToMp3(ctx context.Context, inputPath string, outputPath string, quality string, metadata *MusicMetadata, coverPath string) error {
+	return ConvertToMp3WithProgress(ctx, inputPath, outputPath, quality, metadata, coverPath, nil)
+}
+
+func ConvertToMp3WithProgress(ctx context.Context, inputPath string, outputPath string, quality string, metadata *MusicMetadata, coverPath string, onProgress func(float64)) error {
 	bitrate := "192k"
 	if quality != "" {
 		bitrate = strings.TrimSuffix(quality, "k") + "k"
@@ -1039,15 +1121,70 @@ func ConvertToMp3(ctx context.Context, inputPath string, outputPath string, qual
 		return err
 	}
 
-	var stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, ffmpegPath, ffmpegMP3Args(inputPath, outputPath, bitrate, metadata, coverPath)...)
-	cmd.Stderr = &stderr
+	duration := mediaDuration(ctx, ffmpegPath, inputPath)
+	args := ffmpegMP3Args(inputPath, outputPath, bitrate, metadata, coverPath)
+	if onProgress != nil && duration > 0 {
+		args = append([]string{"-progress", "pipe:1", "-nostats"}, args...)
+	}
 
-	err = cmd.Run()
+	var stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, ffmpegPath, args...)
+	cmd.Stderr = &stderr
+	var stdout io.ReadCloser
+	if onProgress != nil && duration > 0 {
+		stdout, err = cmd.StdoutPipe()
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	if stdout != nil {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			emitFFmpegProgressLine(scanner.Text(), duration, onProgress)
+		}
+	}
+	err = cmd.Wait()
 	if err != nil {
 		return fmt.Errorf("ffmpeg error: %v, detail: %s", err, stderr.String())
 	}
+	if onProgress != nil {
+		onProgress(100)
+	}
 	return nil
+}
+
+func mediaDuration(ctx context.Context, ffmpegPath, inputPath string) time.Duration {
+	var stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, ffmpegPath, "-hide_banner", "-i", inputPath)
+	cmd.Stderr = &stderr
+	_ = cmd.Run()
+	match := ffmpegDurationPattern.FindStringSubmatch(stderr.String())
+	if len(match) != 4 {
+		return 0
+	}
+	hours, _ := strconv.Atoi(match[1])
+	minutes, _ := strconv.Atoi(match[2])
+	seconds, _ := strconv.ParseFloat(match[3], 64)
+	return time.Duration(hours)*time.Hour + time.Duration(minutes)*time.Minute + time.Duration(seconds*float64(time.Second))
+}
+
+func emitFFmpegProgressLine(line string, duration time.Duration, onProgress func(float64)) {
+	match := ffmpegProgressPattern.FindStringSubmatch(line)
+	if len(match) != 2 {
+		return
+	}
+	outMicros, _ := strconv.ParseInt(match[1], 10, 64)
+	percent := float64(time.Duration(outMicros)*time.Microsecond) / float64(duration) * 100
+	if percent > 99.9 {
+		percent = 99.9
+	}
+	if percent > 0 {
+		onProgress(percent)
+	}
 }
 
 func ffmpegMP3Args(inputPath, outputPath, bitrate string, metadata *MusicMetadata, coverPath string) []string {

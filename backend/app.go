@@ -142,15 +142,24 @@ func (a *App) AddAudioDownloads(requests []AudioDownloadRequest, quality string)
 	for _, request := range requests {
 		url := cleanYouTubeURL(request.URL)
 		format := request.Format
+		status := StatusPending
+		if request.Error != "" {
+			status = StatusFailed
+		}
 		item := &DownloadItem{
 			ID:          uuid.New().String(),
 			URL:         url,
+			Title:       url,
 			Quality:     quality,
 			MediaType:   MediaTypeAudio,
 			AudioFormat: &format,
-			Status:      StatusPending,
+			Status:      status,
+			Error:       request.Error,
 			CreatedAt:   time.Now().Format(time.RFC3339),
 			Progress:    DownloadProgress{Percent: 0, Speed: "---", ETA: "---"},
+		}
+		if request.Error == "" {
+			item.Title = ""
 		}
 		a.items[item.ID] = item
 		a.queueOrder = append(a.queueOrder, item.ID)
@@ -169,14 +178,23 @@ func (a *App) AddVideoDownloads(requests []VideoDownloadRequest) []DownloadItem 
 	for _, request := range requests {
 		url := cleanYouTubeURL(request.URL)
 		format := request.Format
+		status := StatusPending
+		if request.Error != "" {
+			status = StatusFailed
+		}
 		item := &DownloadItem{
 			ID:          uuid.New().String(),
 			URL:         url,
+			Title:       url,
 			MediaType:   MediaTypeVideo,
 			VideoFormat: &format,
-			Status:      StatusPending,
+			Status:      status,
+			Error:       request.Error,
 			CreatedAt:   time.Now().Format(time.RFC3339),
 			Progress:    DownloadProgress{Percent: 0, Speed: "---", ETA: "---"},
+		}
+		if request.Error == "" {
+			item.Title = ""
 		}
 		a.items[item.ID] = item
 		a.queueOrder = append(a.queueOrder, item.ID)

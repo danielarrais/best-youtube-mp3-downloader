@@ -10,6 +10,7 @@ import (
 const (
 	defaultVideoContainer = "mp4"
 	defaultVideoQuality   = "1080p"
+	defaultAudioBitrate   = "192k"
 	defaultTheme          = "dark"
 	FileDeletionDelete    = "delete"
 	FileDeletionAsk       = "ask"
@@ -17,24 +18,30 @@ const (
 )
 
 type Config struct {
-	DownloadDir    string `json:"download_dir"`
-	Quality        string `json:"quality"`
-	VideoContainer string `json:"video_container"`
-	VideoQuality   string `json:"video_quality"`
-	FileDeletion   string `json:"file_deletion"`
-	Language       string `json:"language"`
-	Theme          string `json:"theme"`
+	DownloadDir        string `json:"download_dir"`
+	Quality            string `json:"quality"`
+	AudioBitrateTarget string `json:"audio_bitrate_target"`
+	VideoContainer     string `json:"video_container"`
+	VideoQuality       string `json:"video_quality"`
+	AskAudioQuality    bool   `json:"ask_audio_quality"`
+	AskVideoQuality    bool   `json:"ask_video_quality"`
+	FileDeletion       string `json:"file_deletion"`
+	Language           string `json:"language"`
+	Theme              string `json:"theme"`
 }
 
 func defaultConfig(home string) Config {
 	return Config{
-		DownloadDir:    filepath.Join(home, "Downloads", "YouTube-MP3"),
-		Quality:        "192k",
-		VideoContainer: defaultVideoContainer,
-		VideoQuality:   defaultVideoQuality,
-		FileDeletion:   FileDeletionAsk,
-		Language:       "pt-BR",
-		Theme:          defaultTheme,
+		DownloadDir:        filepath.Join(home, "Downloads", "YouTube-MP3"),
+		Quality:            defaultAudioBitrate,
+		AudioBitrateTarget: defaultAudioBitrate,
+		VideoContainer:     defaultVideoContainer,
+		VideoQuality:       defaultVideoQuality,
+		AskAudioQuality:    true,
+		AskVideoQuality:    true,
+		FileDeletion:       FileDeletionAsk,
+		Language:           "pt-BR",
+		Theme:              defaultTheme,
 	}
 }
 
@@ -43,10 +50,19 @@ func normalizeConfig(config, defaults Config) Config {
 		config.DownloadDir = defaults.DownloadDir
 	}
 	switch config.Quality {
-	case "128k", "192k", "320k":
+	case "128k", "160k", "192k":
 	default:
 		config.Quality = defaults.Quality
 	}
+	if config.AudioBitrateTarget == "" {
+		config.AudioBitrateTarget = config.Quality
+	}
+	switch config.AudioBitrateTarget {
+	case "128k", "160k", "192k":
+	default:
+		config.AudioBitrateTarget = defaults.AudioBitrateTarget
+	}
+	config.Quality = config.AudioBitrateTarget
 	switch config.VideoContainer {
 	case "mp4", "webm", "mkv":
 	default:
@@ -97,6 +113,15 @@ func loadConfigFile(path string, defaults Config) (Config, error) {
 	var config Config
 	if err := json.Unmarshal(data, &config); err != nil {
 		return Config{}, fmt.Errorf("configuração inválida: %w", err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err == nil {
+		if _, ok := raw["ask_audio_quality"]; !ok {
+			config.AskAudioQuality = defaults.AskAudioQuality
+		}
+		if _, ok := raw["ask_video_quality"]; !ok {
+			config.AskVideoQuality = defaults.AskVideoQuality
+		}
 	}
 	return normalizeConfig(config, defaults), nil
 }

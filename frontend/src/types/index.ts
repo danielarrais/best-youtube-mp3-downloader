@@ -68,12 +68,14 @@ export interface VideoInfo {
 
 export interface AudioDownloadRequest {
   url: string;
-  format: AudioFormat;
+  format?: AudioFormat;
+  error?: string;
 }
 
 export interface VideoDownloadRequest {
   url: string;
-  format: VideoFormat;
+  format?: VideoFormat;
+  error?: string;
 }
 
 export interface QueueStats {
@@ -107,8 +109,11 @@ export interface PlaylistInfo {
 export interface Config {
   download_dir: string;
   quality: string;
+  audio_bitrate_target: '128k' | '160k' | '192k';
   video_container: 'mp4' | 'webm' | 'mkv';
   video_quality: '144p' | '240p' | '360p' | '480p' | '720p' | '1080p' | '1440p' | '2160p';
+  ask_audio_quality: boolean;
+  ask_video_quality: boolean;
   file_deletion: 'delete' | 'ask' | 'keep';
   language: string;
   theme: 'dark' | 'light';

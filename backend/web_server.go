@@ -92,7 +92,7 @@ func (s *webServer) addDownloads(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		for _, videoRequest := range request.VideoRequests {
-			if strings.TrimSpace(videoRequest.URL) == "" || videoRequest.Format.VideoItag == 0 {
+			if strings.TrimSpace(videoRequest.URL) == "" {
 				writeAPIError(w, http.StatusBadRequest, errors.New("invalid video request"))
 				return
 			}
@@ -102,7 +102,7 @@ func (s *webServer) addDownloads(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(request.AudioRequests) > 0 {
 		for _, audioRequest := range request.AudioRequests {
-			if strings.TrimSpace(audioRequest.URL) == "" || strings.TrimSpace(audioRequest.Format.FormatID) == "" {
+			if strings.TrimSpace(audioRequest.URL) == "" {
 				writeAPIError(w, http.StatusBadRequest, errors.New("invalid audio request"))
 				return
 			}
@@ -111,7 +111,7 @@ func (s *webServer) addDownloads(w http.ResponseWriter, r *http.Request) {
 			request.Quality = s.app.GetConfig().Quality
 		}
 		switch request.Quality {
-		case "128k", "192k", "320k":
+		case "128k", "160k", "192k":
 		default:
 			writeAPIError(w, http.StatusBadRequest, errors.New("invalid quality"))
 			return
@@ -137,7 +137,7 @@ func (s *webServer) addDownloads(w http.ResponseWriter, r *http.Request) {
 		request.Quality = s.app.GetConfig().Quality
 	}
 	switch request.Quality {
-	case "128k", "192k", "320k":
+	case "128k", "160k", "192k":
 	default:
 		writeAPIError(w, http.StatusBadRequest, errors.New("invalid quality"))
 		return

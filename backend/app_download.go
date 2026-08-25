@@ -51,7 +51,9 @@ func (a *App) processDownload(ctx context.Context, item *DownloadItem) {
 			a.mu.Unlock()
 			return
 		}
-		item.ThumbnailURL = musicMeta.CoverURL
+		if musicMeta.CoverURL != "" {
+			item.ThumbnailURL = musicMeta.CoverURL
+		}
 		a.mu.Unlock()
 		a.persistQueue()
 		a.emitItemUpdate(item.ID)
@@ -65,7 +67,21 @@ func (a *App) processDownload(ctx context.Context, item *DownloadItem) {
 
 	a.mu.Lock()
 	downloadDir := a.config.DownloadDir
+	audioBitrateTarget := a.config.AudioBitrateTarget
 	a.mu.Unlock()
+	if item.AudioFormat == nil || item.AudioFormat.FormatID == "" {
+		if formats, _, _ := availableAudioFormats(ctx, item.URL, video); len(formats) > 0 {
+			if format, ok := preferredAudioFormat(formats, audioBitrateTarget); ok {
+				a.mu.Lock()
+				if a.isActiveItemLocked(item.ID) {
+					item.AudioFormat = &format
+				}
+				a.mu.Unlock()
+				a.persistQueue()
+				a.emitItemUpdate(item.ID)
+			}
+		}
+	}
 	outputPath := filepath.Join(downloadDir, SanitizeFilename(video.Title)+".mp3")
 	if musicMeta != nil && musicMeta.Song != "" {
 		filename := musicMeta.Song
@@ -165,7 +181,16 @@ func (a *App) processDownload(ctx context.Context, item *DownloadItem) {
 	if !a.setActiveItemStatus(item.ID, StatusConverting) {
 		return
 	}
-	if err := convertAndPublish(ctx, sourcePath, outputPath, item.Quality, musicMeta, coverPath); err != nil {
+	if err := convertAndPublish(ctx, sourcePath, outputPath, item.Quality, musicMeta, coverPath, func(percent float64) {
+		a.mu.Lock()
+		if a.isActiveItemLocked(item.ID) {
+			item.Progress.Percent = percent
+			item.Progress.Speed = "---"
+			item.Progress.ETA = "---"
+		}
+		a.mu.Unlock()
+		a.emitItemUpdate(item.ID)
+	}); err != nil {
 		if ctx.Err() != nil {
 			a.cleanupInterruptedDownload(item.ID, "")
 			return
@@ -203,9 +228,25 @@ func (a *App) processDownload(ctx context.Context, item *DownloadItem) {
 }
 
 func (a *App) processVideoDownload(ctx context.Context, item *DownloadItem, session *YouTubeSession, video *youtube.Video) {
-	if item.VideoFormat == nil {
-		a.updateError(item.ID, FormatOperationError("download", errors.New("formato de vídeo não selecionado"), a.currentLanguage()))
-		return
+	if item.VideoFormat == nil || item.VideoFormat.VideoItag == 0 {
+		a.mu.Lock()
+		videoContainer := a.config.VideoContainer
+		videoQuality := a.config.VideoQuality
+		a.mu.Unlock()
+		format, ok := preferredVideoFormat(AvailableVideoFormats(video), videoContainer, videoQuality)
+		if !ok {
+			a.updateError(item.ID, FormatOperationError("download", errors.New("nenhum formato de vídeo disponível"), a.currentLanguage()))
+			return
+		}
+		a.mu.Lock()
+		if !a.isActiveItemLocked(item.ID) {
+			a.mu.Unlock()
+			return
+		}
+		item.VideoFormat = &format
+		a.mu.Unlock()
+		a.persistQueue()
+		a.emitItemUpdate(item.ID)
 	}
 	format := *item.VideoFormat
 	if format.Extension != "mp4" && format.Extension != "webm" && format.Extension != "mkv" {
@@ -431,10 +472,16 @@ func copyFile(sourcePath, destinationPath string) error {
 	return destination.Close()
 }
 
-func convertAndPublish(ctx context.Context, inputPath, outputPath, quality string, metadata *MusicMetadata, coverPath string) error {
+func convertAndPublish(ctx context.Context, inputPath, outputPath, quality string, metadata *MusicMetadata, coverPath string, onProgress ...func(float64)) error {
 	partPath := outputPath + ".part"
 	defer os.Remove(partPath)
-	if err := convertAudioToMP3(ctx, inputPath, partPath, quality, metadata, coverPath); err != nil {
+	var err error
+	if len(onProgress) > 0 && onProgress[0] != nil {
+		err = ConvertToMp3WithProgress(ctx, inputPath, partPath, quality, metadata, coverPath, onProgress[0])
+	} else {
+		err = convertAudioToMP3(ctx, inputPath, partPath, quality, metadata, coverPath)
+	}
+	if err != nil {
 		return err
 	}
 	if err := publishConvertedFile(partPath, outputPath); err != nil {

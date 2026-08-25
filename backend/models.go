@@ -83,11 +83,13 @@ type VideoInfo struct {
 type AudioDownloadRequest struct {
 	URL    string      `json:"url"`
 	Format AudioFormat `json:"format"`
+	Error  string      `json:"error,omitempty"`
 }
 
 type VideoDownloadRequest struct {
 	URL    string      `json:"url"`
 	Format VideoFormat `json:"format"`
+	Error  string      `json:"error,omitempty"`
 }
 
 type QueueStats struct {

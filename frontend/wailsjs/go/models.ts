@@ -3,8 +3,11 @@ export namespace main {
 	export class Config {
 	    download_dir: string;
 	    quality: string;
+	    audio_bitrate_target: string;
 	    video_container: string;
 	    video_quality: string;
+	    ask_audio_quality: boolean;
+	    ask_video_quality: boolean;
 	    file_deletion: string;
 	    language: string;
 	    theme: string;
@@ -17,8 +20,11 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.download_dir = source["download_dir"];
 	        this.quality = source["quality"];
+	        this.audio_bitrate_target = source["audio_bitrate_target"];
 	        this.video_container = source["video_container"];
 	        this.video_quality = source["video_quality"];
+	        this.ask_audio_quality = source["ask_audio_quality"];
+	        this.ask_video_quality = source["ask_video_quality"];
 	        this.file_deletion = source["file_deletion"];
 	        this.language = source["language"];
 	        this.theme = source["theme"];
@@ -251,6 +257,7 @@ export namespace main {
 	export class AudioDownloadRequest {
 	    url: string;
 	    format: AudioFormat;
+	    error?: string;
 
 	    static createFrom(source: any = {}) {
 	        return new AudioDownloadRequest(source);
@@ -260,6 +267,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.url = source["url"];
 	        this.format = this.convertValues(source["format"], AudioFormat);
+	        this.error = source["error"];
 	    }
 
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -283,6 +291,7 @@ export namespace main {
 	export class VideoDownloadRequest {
 	    url: string;
 	    format: VideoFormat;
+	    error?: string;
 
 	    static createFrom(source: any = {}) {
 	        return new VideoDownloadRequest(source);
@@ -292,6 +301,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.url = source["url"];
 	        this.format = this.convertValues(source["format"], VideoFormat);
+	        this.error = source["error"];
 	    }
 
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
