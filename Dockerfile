@@ -73,8 +73,7 @@ RUN case "$TARGETARCH" in \
         > /tmp/ytdlp-checksum.sha256 \
     && (cd /tmp && sha256sum --check ytdlp-checksum.sha256) \
     && mkdir -p /out \
-    && install -m 0755 "/tmp/$filename" /out/yt-dlp \
-    && /out/yt-dlp --version
+    && install -m 0755 "/tmp/$filename" /out/yt-dlp
 
 FROM debian:bookworm-slim
 
