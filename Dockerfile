@@ -53,12 +53,11 @@ RUN case "$TARGETARCH" in \
 FROM debian:bookworm-slim
 
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends \
-        ca-certificates \
-        firefox-esr \
-        nodejs \
-        python3 \
-        python3-venv \
+	&& apt-get install --yes --no-install-recommends \
+		ca-certificates \
+		nodejs \
+		python3 \
+		python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python3 -m venv /opt/yt-dlp \

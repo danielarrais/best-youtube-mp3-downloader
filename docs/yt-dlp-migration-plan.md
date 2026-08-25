@@ -38,7 +38,6 @@ The Docker runtime must include the tools needed by the new default path:
 - `yt-dlp`
 - `node`
 - `python3`
-- `firefox-esr`
 - `ffmpeg`
 
 This allows the container to use the same primary download backend as the desktop app.

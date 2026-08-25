@@ -70,15 +70,8 @@ func runYTDLPDownload(ctx context.Context, request ytDLPDownloadRequest, onProgr
 		return "", errYTDLPUnavailable
 	}
 
-	strategies := [][]string{
-		{"--cookies-from-browser", "firefox", "--impersonate", "chrome-136"},
-		{"--impersonate", "chrome-136"},
-		{"--cookies-from-browser", "firefox"},
-		nil,
-	}
-
 	var lastErr error
-	for _, strategy := range strategies {
+	for _, strategy := range ytDLPStrategies() {
 		strategyName := ytDLPStrategyName(strategy)
 		args := append(buildYTDLPBaseArgs(), strategy...)
 		args = append(args,
@@ -341,14 +334,8 @@ func listAudioFormatsWithYTDLP(ctx context.Context, url string) (ytDLPInfo, erro
 	if err != nil {
 		return ytDLPInfo{}, errYTDLPUnavailable
 	}
-	strategies := [][]string{
-		{"--cookies-from-browser", "firefox", "--impersonate", "chrome-136"},
-		{"--impersonate", "chrome-136"},
-		{"--cookies-from-browser", "firefox"},
-		nil,
-	}
 	var lastErr error
-	for _, strategy := range strategies {
+	for _, strategy := range ytDLPStrategies() {
 		strategyName := ytDLPStrategyName(strategy)
 		args := append(buildYTDLPBaseArgs(), strategy...)
 		args = append(args, "-J", "--no-download", url)
@@ -449,11 +436,6 @@ func ytDLPStrategyName(strategy []string) string {
 	parts := make([]string, 0, len(strategy)/2+1)
 	for i := 0; i < len(strategy); i++ {
 		switch strategy[i] {
-		case "--cookies-from-browser":
-			if i+1 < len(strategy) {
-				parts = append(parts, "cookies:"+strategy[i+1])
-				i++
-			}
 		case "--impersonate":
 			if i+1 < len(strategy) {
 				parts = append(parts, "impersonate:"+strategy[i+1])
@@ -465,4 +447,11 @@ func ytDLPStrategyName(strategy []string) string {
 		return "custom"
 	}
 	return strings.Join(parts, "+")
+}
+
+func ytDLPStrategies() [][]string {
+	return [][]string{
+		{"--impersonate", "chrome-136"},
+		nil,
+	}
 }
