@@ -202,7 +202,7 @@ export function SettingsModal({
                 <option key={value} value={value}>{value}</option>
               ))}
             </select>
-            <label className="flex items-start gap-3 rounded-lg border border-slate-300 bg-slate-50 px-3 py-3 text-sm text-slate-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+            <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-gray-200">
               <input
                 type="checkbox"
                 checked={selectedAskVideoQuality}
@@ -224,7 +224,7 @@ export function SettingsModal({
               <option value="160k">160 kbps</option>
               <option value="192k">192 kbps</option>
             </select>
-            <label className="flex items-start gap-3 rounded-lg border border-slate-300 bg-slate-50 px-3 py-3 text-sm text-slate-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+            <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-gray-200">
               <input
                 type="checkbox"
                 checked={selectedAskAudioQuality}

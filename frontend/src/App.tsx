@@ -44,7 +44,8 @@ function App() {
     });
   }));
 
-  const filteredDownloads = downloads.filter(item => {
+  const displayDownloads = [...downloads].reverse();
+  const filteredDownloads = displayDownloads.filter(item => {
     switch (activeFilter) {
       case 'downloading':
         return ['downloading', 'converting'].includes(item.status);
