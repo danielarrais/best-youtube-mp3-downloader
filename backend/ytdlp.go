@@ -65,9 +65,9 @@ func downloadVideoWithYTDLP(ctx context.Context, url string, format VideoFormat,
 }
 
 func runYTDLPDownload(ctx context.Context, request ytDLPDownloadRequest, onProgress func(mediaDownloadProgress)) (string, error) {
-	ytDLPPath, err := exec.LookPath("yt-dlp")
+	ytDLPPath, err := CheckAndDownloadYTDLP()
 	if err != nil {
-		return "", errYTDLPUnavailable
+		return "", fmt.Errorf("%w: %v", errYTDLPUnavailable, err)
 	}
 
 	var lastErr error
@@ -330,9 +330,9 @@ func ytDLPOutputTemplate(dir, baseName string) string {
 }
 
 func listAudioFormatsWithYTDLP(ctx context.Context, url string) (ytDLPInfo, error) {
-	ytDLPPath, err := exec.LookPath("yt-dlp")
+	ytDLPPath, err := CheckAndDownloadYTDLP()
 	if err != nil {
-		return ytDLPInfo{}, errYTDLPUnavailable
+		return ytDLPInfo{}, fmt.Errorf("%w: %v", errYTDLPUnavailable, err)
 	}
 	var lastErr error
 	for _, strategy := range ytDLPStrategies() {

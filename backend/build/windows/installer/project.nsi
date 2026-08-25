@@ -88,6 +88,7 @@ Section
 
     !insertmacro wails.files
     File "/oname=ffmpeg.exe" "resources\ffmpeg.exe"
+    File "/oname=yt-dlp.exe" "resources\yt-dlp.exe"
 
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"

@@ -1078,7 +1078,7 @@ func downloadFormatWithYTDLP(ctx context.Context, videoID string, itag int, dest
 	if !shouldFallbackToYTDLP(sourceErr) {
 		return sourceErr
 	}
-	ytDLPPath, err := exec.LookPath("yt-dlp")
+	ytDLPPath, err := CheckAndDownloadYTDLP()
 	if err != nil {
 		return sourceErr
 	}

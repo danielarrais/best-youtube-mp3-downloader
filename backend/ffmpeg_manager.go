@@ -104,6 +104,10 @@ func cacheFFmpegPath(path string) string {
 }
 
 func ffmpegCacheDir() (string, error) {
+	return appBinaryCacheDir()
+}
+
+func appBinaryCacheDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("não foi possível localizar a pasta do usuário: %w", err)

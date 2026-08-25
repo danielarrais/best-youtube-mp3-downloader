@@ -2,6 +2,7 @@ FROM golang:1.26-bookworm AS builder
 
 ARG WAILS_VERSION=v2.12.0
 ARG FFMPEG_URL=https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip
+ARG YTDLP_BASE_URL=https://github.com/yt-dlp/yt-dlp/releases/latest/download
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -27,6 +28,13 @@ RUN mkdir -p build/windows/installer/resources /tmp/ffmpeg && \
     unzip -q /tmp/ffmpeg.zip -d /tmp/ffmpeg && \
     find /tmp/ffmpeg -type f -iname ffmpeg.exe -exec cp {} build/windows/installer/resources/ffmpeg.exe \; && \
     test -f build/windows/installer/resources/ffmpeg.exe
+
+RUN curl -L --fail --retry 3 "${YTDLP_BASE_URL}/SHA2-256SUMS" -o /tmp/ytdlp-checksums.sha256 && \
+    curl -L --fail --retry 3 "${YTDLP_BASE_URL}/yt-dlp.exe" -o /tmp/yt-dlp.exe && \
+    grep "  yt-dlp.exe$" /tmp/ytdlp-checksums.sha256 > /tmp/ytdlp-checksum.sha256 && \
+    (cd /tmp && sha256sum --check ytdlp-checksum.sha256) && \
+    cp /tmp/yt-dlp.exe build/windows/installer/resources/yt-dlp.exe && \
+    test -f build/windows/installer/resources/yt-dlp.exe
 
 RUN wails build \
     -platform windows/amd64 \

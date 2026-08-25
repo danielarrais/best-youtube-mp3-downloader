@@ -66,9 +66,12 @@ validates a build for Linux or Windows (`amd64` and `arm64`) and stores it in
 `~/.youtube-mp3-downloader-bin/`. The first use therefore requires internet
 access, but the binary does not need to be committed to the repository.
 
-For media downloads, the backend tries `yt-dlp` first. If `yt-dlp` is not
-available, supported operations fall back to the Go stream downloader backed by
-`kkdai/youtube`.
+For media downloads, the backend tries `yt-dlp` first. Desktop release packages
+include the official standalone `yt-dlp` binary next to the application. Local
+builds can also use a system-installed `yt-dlp`; if none is available, the app
+downloads a checksum-verified copy into `~/.youtube-mp3-downloader-bin/` as a
+fallback. If `yt-dlp` is unavailable, supported operations fall back to the Go
+stream downloader backed by `kkdai/youtube`.
 
 On Linux with WebKitGTK 4.1:
 
@@ -292,7 +295,7 @@ The installer is written to `backend/build/windows/dist/`.
 
 Tags in the `vX.Y.Z` format run the `Release` workflow. It validates the
 project, creates a Windows `amd64` installer and an Ubuntu 24.04+ `amd64` DEB
-package, includes FFmpeg in both, and publishes the artifacts with
+package, includes FFmpeg and `yt-dlp` in both, and publishes the artifacts with
 `SHA256SUMS` to the GitHub Release.
 
 ```bash

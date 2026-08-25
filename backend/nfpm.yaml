@@ -24,6 +24,10 @@ contents:
     dst: /opt/youtube-mp3-downloader/ffmpeg
     file_info:
       mode: 0755
+  - src: ./build/linux/package/yt-dlp
+    dst: /opt/youtube-mp3-downloader/yt-dlp
+    file_info:
+      mode: 0755
   - src: /opt/youtube-mp3-downloader/youtube-mp3-downloader
     dst: /usr/bin/youtube-mp3-downloader
     type: symlink
