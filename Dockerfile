@@ -6,14 +6,13 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-FROM --platform=$BUILDPLATFORM golang:1.26.5-bookworm AS backend
+FROM --platform=$BUILDPLATFORM golang:1.26.6-bookworm AS backend
 
 ARG TARGETARCH
 ARG TARGETOS
 
 WORKDIR /src/backend
 COPY backend/go.mod backend/go.sum ./
-COPY backend/third_party/youtube-v2 ./third_party/youtube-v2
 RUN go mod download
 COPY backend/ ./
 COPY --from=frontend /src/backend/frontend/dist ./frontend/dist
