@@ -28,7 +28,8 @@ dependency lists and exact versions.
 | --- | --- | --- |
 | [Go](https://go.dev/) | 1.26.6 | Backend, HTTP API, queue management, persistence, and download processing. |
 | [Wails](https://wails.io/docs/introduction/) | 2.12.0 | Desktop application and bridge between Go and the React frontend. |
-| [kkdai/youtube](https://github.com/kkdai/youtube) | 2.10.6 | YouTube video and playlist metadata and audio stream retrieval. |
+| [yt-dlp](https://github.com/yt-dlp/yt-dlp) | Runtime dependency | Primary downloader for YouTube audio and video streams. |
+| [kkdai/youtube](https://github.com/kkdai/youtube) | 2.10.6 | YouTube video and playlist metadata plus fallback stream retrieval. |
 | [FFmpeg](https://ffmpeg.org/documentation.html) | Provided by the system or image | Converts downloaded audio into MP3 at the supported quality settings. |
 | [google/uuid](https://github.com/google/uuid) | 1.6.0 | Generates unique identifiers for queue items. |
 | [ulikunitz/xz](https://github.com/ulikunitz/xz) | 0.5.15 | Extracts Linux FFmpeg builds distributed as `tar.xz` archives. |
@@ -64,6 +65,10 @@ system-installed FFmpeg. If none is found, it automatically downloads and
 validates a build for Linux or Windows (`amd64` and `arm64`) and stores it in
 `~/.youtube-mp3-downloader-bin/`. The first use therefore requires internet
 access, but the binary does not need to be committed to the repository.
+
+For media downloads, the backend tries `yt-dlp` first. If `yt-dlp` is not
+available, supported operations fall back to the Go stream downloader backed by
+`kkdai/youtube`.
 
 On Linux with WebKitGTK 4.1:
 
@@ -105,10 +110,10 @@ and uses the same `1` to `8` safe range.
 
 ## Web with Docker
 
-The image contains the backend, compiled frontend, a checksum-verified
-[BtbN FFmpeg build](https://github.com/BtbN/FFmpeg-Builds), and TLS
-certificates on a minimal Distroless runtime. The pipeline will publish
-`linux/amd64` and `linux/arm64` images to:
+The image contains the backend, compiled frontend, `yt-dlp` with `curl-cffi`, a
+checksum-verified [BtbN FFmpeg build](https://github.com/BtbN/FFmpeg-Builds),
+and TLS certificates. The pipeline will publish `linux/amd64` and `linux/arm64`
+images to:
 
 ```text
 docker.io/danielarrais/youtube-mp3-downloader
