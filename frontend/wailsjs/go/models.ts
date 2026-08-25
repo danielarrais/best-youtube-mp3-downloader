@@ -44,6 +44,32 @@ export namespace main {
 	        this.eta = source["eta"];
 	    }
 	}
+	export class AudioFormat {
+	    format_id: string;
+	    container: string;
+	    extension: string;
+	    audio_codec?: string;
+	    bitrate?: number;
+	    sample_rate?: number;
+	    protocol?: string;
+	    label: string;
+
+	    static createFrom(source: any = {}) {
+	        return new AudioFormat(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.format_id = source["format_id"];
+	        this.container = source["container"];
+	        this.extension = source["extension"];
+	        this.audio_codec = source["audio_codec"];
+	        this.bitrate = source["bitrate"];
+	        this.sample_rate = source["sample_rate"];
+	        this.protocol = source["protocol"];
+	        this.label = source["label"];
+	    }
+	}
 	export class VideoFormat {
 	    video_itag: number;
 	    audio_itag?: number;
@@ -80,6 +106,7 @@ export namespace main {
 	    title: string;
 	    quality: string;
 	    media_type?: string;
+	    audio_format?: AudioFormat;
 	    video_format?: VideoFormat;
 	    status: string;
 	    progress: DownloadProgress;
@@ -102,6 +129,7 @@ export namespace main {
 	        this.title = source["title"];
 	        this.quality = source["quality"];
 	        this.media_type = source["media_type"];
+	        this.audio_format = this.convertValues(source["audio_format"], AudioFormat);
 	        this.video_format = this.convertValues(source["video_format"], VideoFormat);
 	        this.status = source["status"];
 	        this.progress = this.convertValues(source["progress"], DownloadProgress);
@@ -220,6 +248,38 @@ export namespace main {
 	        this.paused = source["paused"];
 	    }
 	}
+	export class AudioDownloadRequest {
+	    url: string;
+	    format: AudioFormat;
+
+	    static createFrom(source: any = {}) {
+	        return new AudioDownloadRequest(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.url = source["url"];
+	        this.format = this.convertValues(source["format"], AudioFormat);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class VideoDownloadRequest {
 	    url: string;
 	    format: VideoFormat;
@@ -257,6 +317,7 @@ export namespace main {
 	    title: string;
 	    thumbnail_url?: string;
 	    formats: VideoFormat[];
+	    audio_formats?: AudioFormat[];
 
 	    static createFrom(source: any = {}) {
 	        return new VideoInfo(source);
@@ -267,6 +328,7 @@ export namespace main {
 	        this.title = source["title"];
 	        this.thumbnail_url = source["thumbnail_url"];
 	        this.formats = this.convertValues(source["formats"], VideoFormat);
+	        this.audio_formats = this.convertValues(source["audio_formats"], AudioFormat);
 	    }
 
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

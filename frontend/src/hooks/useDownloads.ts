@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { api } from '../services/api';
-import { DownloadItem, QueueStats, VideoDownloadRequest } from '../types';
+import { AudioDownloadRequest, DownloadItem, QueueStats, VideoDownloadRequest } from '../types';
 import { useTranslation } from './useTranslation';
 
 interface DeleteConfirmationOptions {
@@ -64,6 +64,15 @@ export function useDownloads(confirmDelete: (options: DeleteConfirmationOptions)
     }
   }, [refreshData]);
 
+  const addAudioDownloads = useCallback(async (requests: AudioDownloadRequest[], quality: string) => {
+    try {
+      await api.addAudioDownloads(requests, quality);
+      await refreshData();
+    } catch (e) {
+      console.error("JS: Erro ao adicionar audios:", e);
+    }
+  }, [refreshData]);
+
   const addVideoDownloads = useCallback(async (requests: VideoDownloadRequest[]) => {
     try {
       await api.addVideoDownloads(requests);
@@ -74,40 +83,43 @@ export function useDownloads(confirmDelete: (options: DeleteConfirmationOptions)
   }, [refreshData]);
 
   const removeDownload = async (item: DownloadItem) => {
+    const canChooseFileDeletion = api.capabilities.nativeFolders && ['completed', 'skipped'].includes(item.status);
     const result = await confirmDelete({
       title: t.removeItemTitle,
       message: t.removeItemMessage,
-      includeDeleteFileOption: ['completed', 'skipped'].includes(item.status),
+      includeDeleteFileOption: canChooseFileDeletion,
     });
     if (!result.confirmed) return;
-    await api.removeDownload(item.id, result.deleteFile);
+    await api.removeDownload(item.id, api.capabilities.nativeFolders ? result.deleteFile : true);
     await refreshData();
   };
 
   const clearCompleted = async () => {
+    const canChooseFileDeletion = api.capabilities.nativeFolders && downloads.some(item => ['completed', 'skipped'].includes(item.status));
     const result = await confirmDelete({
       title: t.clearCompletedTitle,
       message: t.clearCompletedMessage,
-      includeDeleteFileOption: downloads.some(item => ['completed', 'skipped'].includes(item.status)),
+      includeDeleteFileOption: canChooseFileDeletion,
     });
     if (!result.confirmed) return;
-    await api.clearCompleted(result.deleteFile);
+    await api.clearCompleted(api.capabilities.nativeFolders ? result.deleteFile : true);
     await refreshData();
   };
 
   const clearAll = async () => {
+    const canChooseFileDeletion = api.capabilities.nativeFolders && downloads.some(item => ['completed', 'skipped'].includes(item.status));
     const result = await confirmDelete({
       title: t.clearAllTitle,
       message: t.clearAllMessage,
-      includeDeleteFileOption: downloads.some(item => ['completed', 'skipped'].includes(item.status)),
+      includeDeleteFileOption: canChooseFileDeletion,
     });
     if (!result.confirmed) return;
-    await api.clearAll(result.deleteFile);
+    await api.clearAll(api.capabilities.nativeFolders ? result.deleteFile : true);
     await refreshData();
   };
 
   return {
-    downloads, stats, addDownloads, addVideoDownloads,
+    downloads, stats, addDownloads, addAudioDownloads, addVideoDownloads,
     cancelDownload: async (id: string) => { await api.cancelDownload(id); refreshData(); },
     removeDownload,
     retryDownload: async (id: string) => { await api.retryDownload(id); refreshData(); },

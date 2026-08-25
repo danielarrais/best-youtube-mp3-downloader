@@ -31,6 +31,72 @@ type MusicMetadata struct {
 	CoverURL string
 }
 
+type watchPagePlayerResponse struct {
+	PlayabilityStatus struct {
+		Status string `json:"status"`
+		Reason string `json:"reason"`
+	} `json:"playabilityStatus"`
+	StreamingData struct {
+		Formats         []watchPageFormat `json:"formats"`
+		AdaptiveFormats []watchPageFormat `json:"adaptiveFormats"`
+		DashManifestURL string            `json:"dashManifestUrl"`
+		HLSManifestURL  string            `json:"hlsManifestUrl"`
+	} `json:"streamingData"`
+	VideoDetails struct {
+		Title            string `json:"title"`
+		ShortDescription string `json:"shortDescription"`
+		Author           string `json:"author"`
+		ChannelID        string `json:"channelId"`
+		ViewCount        string `json:"viewCount"`
+		LengthSeconds    string `json:"lengthSeconds"`
+		Thumbnail        struct {
+			Thumbnails youtube.Thumbnails `json:"thumbnails"`
+		} `json:"thumbnail"`
+	} `json:"videoDetails"`
+	Microformat struct {
+		PlayerMicroformatRenderer struct {
+			LengthSeconds   string `json:"lengthSeconds"`
+			OwnerProfileURL string `json:"ownerProfileUrl"`
+			PublishDate     string `json:"publishDate"`
+		} `json:"playerMicroformatRenderer"`
+	} `json:"microformat"`
+}
+
+type watchPageFormat struct {
+	ItagNo           int    `json:"itag"`
+	URL              string `json:"url"`
+	MimeType         string `json:"mimeType"`
+	Quality          string `json:"quality"`
+	SignatureCipher  string `json:"signatureCipher"`
+	Cipher           string `json:"cipher"`
+	Bitrate          int    `json:"bitrate"`
+	FPS              int    `json:"fps"`
+	Width            int    `json:"width"`
+	Height           int    `json:"height"`
+	LastModified     string `json:"lastModified"`
+	ContentLength    int64  `json:"contentLength,string"`
+	QualityLabel     string `json:"qualityLabel"`
+	ProjectionType   string `json:"projectionType"`
+	AverageBitrate   int    `json:"averageBitrate"`
+	AudioQuality     string `json:"audioQuality"`
+	ApproxDurationMs string `json:"approxDurationMs"`
+	AudioSampleRate  string `json:"audioSampleRate"`
+	AudioChannels    int    `json:"audioChannels"`
+	InitRange        *struct {
+		Start string `json:"start"`
+		End   string `json:"end"`
+	} `json:"initRange"`
+	IndexRange *struct {
+		Start string `json:"start"`
+		End   string `json:"end"`
+	} `json:"indexRange"`
+	AudioTrack *struct {
+		DisplayName    string `json:"displayName"`
+		ID             string `json:"id"`
+		AudioIsDefault bool   `json:"audioIsDefault"`
+	} `json:"audioTrack"`
+}
+
 var (
 	ytInitialDataPattern   = regexp.MustCompile(`var ytInitialData\s*=\s*(\{.+?\});`)
 	ytInitialPlayerPattern = regexp.MustCompile(`var ytInitialPlayerResponse\s*=\s*(\{.+?\});`)
@@ -345,15 +411,6 @@ func retryDelay(value string, attempt int) time.Duration {
 	return time.Duration(attempt+1) * time.Second
 }
 
-func init() {
-	youtube.AndroidVRClient.Version = "1.60.19"
-	youtube.AndroidVRClient.Key = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
-	youtube.AndroidVRClient.UserAgent = "com.google.android.apps.youtube.vr.oculus/1.60.19 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip"
-	youtube.AndroidVRClient.AndroidVersion = 32
-	youtube.AndroidVRClient.DeviceModel = "Quest 3"
-	youtube.DefaultClient = youtube.AndroidVRClient
-}
-
 func SanitizeFilename(filename string) string {
 	filename = invalidFilenameCharacters.ReplaceAllString(filename, "_")
 	filename = strings.Trim(filename, " .")
@@ -363,7 +420,7 @@ func SanitizeFilename(filename string) string {
 	return filename
 }
 
-func newMetadataHTTPClient() *http.Client {
+func newMetadataHTTPClient() (*http.Client, *androidVRTransport) {
 	baseTransport := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		ForceAttemptHTTP2:     true,
@@ -372,35 +429,44 @@ func newMetadataHTTPClient() *http.Client {
 		ResponseHeaderTimeout: 20 * time.Second,
 		IdleConnTimeout:       60 * time.Second,
 	}
+	transport := &androidVRTransport{base: baseTransport}
 	return &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: &androidVRTransport{base: &retryTransport{
-			base:        baseTransport,
-			maxAttempts: 3,
-		}},
-	}
+		Timeout:   30 * time.Second,
+		Transport: &retryTransport{base: transport, maxAttempts: 3},
+	}, transport
 }
 
 func newStreamingHTTPClient() *http.Client {
+	baseTransport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		ForceAttemptHTTP2:     true,
+		DialContext:           (&net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+		IdleConnTimeout:       90 * time.Second,
+	}
 	return &http.Client{
-		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			ForceAttemptHTTP2:     true,
-			DialContext:           (&net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ResponseHeaderTimeout: 30 * time.Second,
-			IdleConnTimeout:       90 * time.Second,
-		},
+		Transport: &retryTransport{base: baseTransport, maxAttempts: 3},
 	}
 }
 
 func NewYouTubeSession() *YouTubeSession {
-	httpClient := newMetadataHTTPClient()
-	transport := httpClient.Transport.(*androidVRTransport)
+	youtube.DefaultClient = configuredYouTubeClientInfo(youtube.DefaultClient)
+	httpClient, transport := newMetadataHTTPClient()
 	return &YouTubeSession{
-		client:    &youtube.Client{HTTPClient: httpClient},
+		client:    &youtube.Client{HTTPClient: httpClient, MaxRoutines: 1},
 		transport: transport,
 	}
+}
+
+func configuredYouTubeClientInfo(client youtube.ClientInfo) youtube.ClientInfo {
+	if client.Name == "" {
+		client = youtube.AndroidVRClient
+	}
+	if client.Key == "" {
+		client.Key = youtubeAPIKey
+	}
+	return client
 }
 
 func getClient() *youtube.Client {
@@ -420,6 +486,7 @@ func (s *YouTubeSession) GetVideo(ctx context.Context, url string) (*youtube.Vid
 	for attempt := 0; attempt < 3; attempt++ {
 		video, err := s.client.GetVideoContext(ctx, url)
 		if err == nil {
+			s.enrichVideoFromWatchPage(video)
 			return video, nil
 		}
 		lastErr = err
@@ -436,7 +503,30 @@ func (s *YouTubeSession) GetVideo(ctx context.Context, url string) (*youtube.Vid
 	return nil, lastErr
 }
 
+func (s *YouTubeSession) enrichVideoFromWatchPage(video *youtube.Video) {
+	if s.transport == nil {
+		return
+	}
+	html := s.transport.WatchPageHTML()
+	if len(html) == 0 {
+		return
+	}
+	watchVideo, err := parseWatchPageVideo(html, video.ID)
+	if err != nil {
+		return
+	}
+	if watchVideo.PublishDate != (time.Time{}) {
+		video.PublishDate = watchVideo.PublishDate
+	}
+	if len(watchVideo.Thumbnails) > 0 {
+		video.Thumbnails = watchVideo.Thumbnails
+	}
+}
+
 func (s *YouTubeSession) ExtractMusicMetadata() *MusicMetadata {
+	if s.transport == nil {
+		return nil
+	}
 	html := s.transport.WatchPageHTML()
 	if len(html) == 0 {
 		return nil
@@ -445,16 +535,139 @@ func (s *YouTubeSession) ExtractMusicMetadata() *MusicMetadata {
 	return meta
 }
 
+func parseWatchPageVideo(html []byte, videoID string) (*youtube.Video, error) {
+	match := ytInitialPlayerPattern.FindSubmatch(html)
+	if len(match) < 2 {
+		return nil, errors.New("no ytInitialPlayerResponse found in watch page")
+	}
+
+	var response watchPagePlayerResponse
+	if err := json.Unmarshal(match[1], &response); err != nil {
+		return nil, err
+	}
+	if response.PlayabilityStatus.Status != "" && response.PlayabilityStatus.Status != "OK" {
+		return nil, fmt.Errorf("watch page status: %s", response.PlayabilityStatus.Status)
+	}
+
+	video := &youtube.Video{
+		ID:              videoID,
+		Title:           response.VideoDetails.Title,
+		Description:     response.VideoDetails.ShortDescription,
+		Author:          response.VideoDetails.Author,
+		ChannelID:       response.VideoDetails.ChannelID,
+		Thumbnails:      response.VideoDetails.Thumbnail.Thumbnails,
+		DASHManifestURL: response.StreamingData.DashManifestURL,
+		HLSManifestURL:  response.StreamingData.HLSManifestURL,
+	}
+	video.Formats = append(video.Formats, convertWatchPageFormats(response.StreamingData.Formats)...)
+	video.Formats = append(video.Formats, convertWatchPageFormats(response.StreamingData.AdaptiveFormats)...)
+	if seconds, _ := strconv.Atoi(response.VideoDetails.LengthSeconds); seconds > 0 {
+		video.Duration = time.Duration(seconds) * time.Second
+	}
+	if seconds, _ := strconv.Atoi(response.Microformat.PlayerMicroformatRenderer.LengthSeconds); seconds > 0 {
+		video.Duration = time.Duration(seconds) * time.Second
+	}
+	if views, _ := strconv.Atoi(response.VideoDetails.ViewCount); views > 0 {
+		video.Views = views
+	}
+	if str := response.Microformat.PlayerMicroformatRenderer.PublishDate; str != "" {
+		if publishDate, err := time.Parse(time.RFC3339, str); err == nil {
+			video.PublishDate = publishDate.UTC()
+		}
+	}
+	sort.SliceStable(video.Formats, func(i, j int) bool {
+		return video.Formats[i].Bitrate > video.Formats[j].Bitrate
+	})
+	return video, nil
+}
+
+func convertWatchPageFormats(formats []watchPageFormat) []youtube.Format {
+	converted := make([]youtube.Format, 0, len(formats))
+	for _, format := range formats {
+		cipher := format.SignatureCipher
+		if cipher == "" {
+			cipher = format.Cipher
+		}
+		converted = append(converted, youtube.Format{
+			ItagNo:           format.ItagNo,
+			URL:              format.URL,
+			MimeType:         format.MimeType,
+			Quality:          format.Quality,
+			Cipher:           cipher,
+			Bitrate:          format.Bitrate,
+			FPS:              format.FPS,
+			Width:            format.Width,
+			Height:           format.Height,
+			LastModified:     format.LastModified,
+			ContentLength:    format.ContentLength,
+			QualityLabel:     format.QualityLabel,
+			ProjectionType:   format.ProjectionType,
+			AverageBitrate:   format.AverageBitrate,
+			AudioQuality:     format.AudioQuality,
+			ApproxDurationMs: format.ApproxDurationMs,
+			AudioSampleRate:  format.AudioSampleRate,
+			AudioChannels:    format.AudioChannels,
+			InitRange:        format.InitRange,
+			IndexRange:       format.IndexRange,
+			AudioTrack:       format.AudioTrack,
+		})
+	}
+	return converted
+}
+
 func (s *YouTubeSession) GetVideoFormats(ctx context.Context, url string) (VideoInfo, error) {
 	video, err := s.GetVideo(ctx, url)
 	if err != nil {
 		return VideoInfo{}, err
 	}
+	audioFormats, title, thumbnailURL := availableAudioFormats(ctx, url, video)
+	if title == "" {
+		title = video.Title
+	}
+	if thumbnailURL == "" {
+		thumbnailURL = largestVideoThumbnail(video.Thumbnails)
+	}
 	return VideoInfo{
-		Title:        video.Title,
-		ThumbnailURL: largestVideoThumbnail(video.Thumbnails),
+		Title:        title,
+		ThumbnailURL: thumbnailURL,
 		Formats:      AvailableVideoFormats(video),
+		AudioFormats: audioFormats,
 	}, nil
+}
+
+func availableAudioFormats(ctx context.Context, url string, video *youtube.Video) ([]AudioFormat, string, string) {
+	if info, err := listAudioFormatsWithYTDLP(ctx, url); err == nil && len(info.AudioFormats) > 0 {
+		return info.AudioFormats, info.Title, info.ThumbnailURL
+	}
+	audioFormats := video.Formats.Type("audio")
+	formats := make([]AudioFormat, 0, len(audioFormats))
+	seen := map[int]struct{}{}
+	for _, format := range audioFormats {
+		if _, ok := seen[format.ItagNo]; ok {
+			continue
+		}
+		seen[format.ItagNo] = struct{}{}
+		container, codec := formatDetails(format)
+		label := strings.ToUpper(container)
+		if format.Bitrate > 0 {
+			label += fmt.Sprintf(" - %dk", format.Bitrate/1000)
+		}
+		if codec != "" {
+			label += " - " + codec
+		}
+		formats = append(formats, AudioFormat{
+			FormatID:   strconv.Itoa(format.ItagNo),
+			Container:  container,
+			Extension:  container,
+			AudioCodec: codec,
+			Bitrate:    format.Bitrate / 1000,
+			Label:      label,
+		})
+	}
+	sort.SliceStable(formats, func(i, j int) bool {
+		return formats[i].Bitrate > formats[j].Bitrate
+	})
+	return formats, "", ""
 }
 
 func largestVideoThumbnail(thumbnails youtube.Thumbnails) string {
@@ -694,12 +907,44 @@ func (s *YouTubeSession) DownloadAudio(ctx context.Context, video *youtube.Video
 }
 
 func (s *YouTubeSession) DownloadFormat(ctx context.Context, video *youtube.Video, format *youtube.Format, destPath string, onProgress func(percent float64, downloaded int64, total int64)) (string, error) {
-	s.client.HTTPClient = newStreamingHTTPClient()
-	stream, totalSize, err := s.client.GetStreamContext(ctx, video, format)
+	streamURL, err := s.client.GetStreamURLContext(ctx, video, format)
+	if err != nil {
+		if fallbackErr := downloadFormatWithYTDLP(ctx, video.ID, format.ItagNo, destPath, err); fallbackErr == nil {
+			return destPath, nil
+		}
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, streamURL, nil)
 	if err != nil {
 		return "", err
 	}
-	defer stream.Close()
+	clientInfo := configuredYouTubeClientInfo(youtube.DefaultClient)
+	req.Header.Set("User-Agent", clientInfo.UserAgent)
+	req.Header.Set("Origin", "https://www.youtube.com")
+	req.Header.Set("Referer", "https://www.youtube.com/watch?v="+video.ID)
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+
+	resp, err := newStreamingHTTPClient().Do(req)
+	if err != nil {
+		if fallbackErr := downloadFormatWithYTDLP(ctx, video.ID, format.ItagNo, destPath, err); fallbackErr == nil {
+			return destPath, nil
+		}
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		err := fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		if fallbackErr := downloadFormatWithYTDLP(ctx, video.ID, format.ItagNo, destPath, err); fallbackErr == nil {
+			return destPath, nil
+		}
+		return "", err
+	}
+
+	totalSize := format.ContentLength
+	if totalSize <= 0 && resp.ContentLength > 0 {
+		totalSize = resp.ContentLength
+	}
 
 	file, err := os.Create(destPath)
 	if err != nil {
@@ -718,7 +963,7 @@ func (s *YouTubeSession) DownloadFormat(ctx context.Context, video *youtube.Vide
 		if err := ctx.Err(); err != nil {
 			return "", closeWithError(err)
 		}
-		n, err := stream.Read(buffer)
+		n, err := resp.Body.Read(buffer)
 		if n > 0 {
 			_, writeErr := file.Write(buffer[:n])
 			if writeErr != nil {
@@ -745,6 +990,43 @@ func (s *YouTubeSession) DownloadFormat(ctx context.Context, video *youtube.Vide
 		return "", err
 	}
 	return destPath, nil
+}
+
+func downloadFormatWithYTDLP(ctx context.Context, videoID string, itag int, destPath string, sourceErr error) error {
+	if !shouldFallbackToYTDLP(sourceErr) {
+		return sourceErr
+	}
+	ytDLPPath, err := exec.LookPath("yt-dlp")
+	if err != nil {
+		return sourceErr
+	}
+	url := "https://www.youtube.com/watch?v=" + videoID
+	cmd := exec.CommandContext(ctx, ytDLPPath,
+		"--no-part",
+		"--force-overwrites",
+		"-f", strconv.Itoa(itag),
+		"-o", destPath,
+		url,
+	)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("yt-dlp fallback error: %v, detail: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	if _, err := os.Stat(destPath); err != nil {
+		return err
+	}
+	return nil
+}
+
+func shouldFallbackToYTDLP(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "unexpected status code: 403") ||
+		strings.Contains(message, "unexpected status code: 429") ||
+		strings.Contains(message, "cipher not found")
 }
 
 func ConvertToMp3(ctx context.Context, inputPath string, outputPath string, quality string, metadata *MusicMetadata, coverPath string) error {

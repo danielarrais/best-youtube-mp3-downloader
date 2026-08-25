@@ -13,6 +13,7 @@ ARG TARGETOS
 
 WORKDIR /src/backend
 COPY backend/go.mod backend/go.sum ./
+COPY backend/third_party/youtube-v2 ./third_party/youtube-v2
 RUN go mod download
 COPY backend/ ./
 COPY --from=frontend /src/backend/frontend/dist ./frontend/dist
@@ -50,13 +51,26 @@ RUN case "$TARGETARCH" in \
     && test -n "$ffmpeg_path" \
     && install -m 0755 "$ffmpeg_path" /out/ffmpeg
 
-FROM gcr.io/distroless/cc-debian12
+FROM debian:bookworm-slim
 
-COPY --from=ffmpeg /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+        ca-certificates \
+        firefox-esr \
+        nodejs \
+        python3 \
+        python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m venv /opt/yt-dlp \
+    && /opt/yt-dlp/bin/pip install --no-cache-dir --upgrade pip \
+    && /opt/yt-dlp/bin/pip install --no-cache-dir yt-dlp curl-cffi
+
 COPY --from=ffmpeg /out/ffmpeg /usr/local/bin/ffmpeg
 COPY --from=backend /out/youtube-mp3-downloader /usr/local/bin/youtube-mp3-downloader
 
-ENV WEB_ADDR=:8080 \
+ENV PATH=/opt/yt-dlp/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    WEB_ADDR=:8080 \
     DATA_DIR=/data \
     DOWNLOAD_DIR=/downloads \
     HEALTHCHECK_URL=http://127.0.0.1:8080/healthz \

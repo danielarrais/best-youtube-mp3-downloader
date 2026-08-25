@@ -4,6 +4,8 @@ import {main} from '../models';
 
 export function AddDownloads(arg1:Array<string>,arg2:string):Promise<Array<main.DownloadItem>>;
 
+export function AddAudioDownloads(arg1:Array<main.AudioDownloadRequest>,arg2:string):Promise<Array<main.DownloadItem>>;
+
 export function AddVideoDownloads(arg1:Array<main.VideoDownloadRequest>):Promise<Array<main.DownloadItem>>;
 
 export function CancelAll():Promise<void>;

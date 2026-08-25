@@ -6,6 +6,10 @@ export function AddDownloads(arg1, arg2) {
   return window['go']['main']['App']['AddDownloads'](arg1, arg2);
 }
 
+export function AddAudioDownloads(arg1, arg2) {
+  return window['go']['main']['App']['AddAudioDownloads'](arg1, arg2);
+}
+
 export function AddVideoDownloads(arg1) {
   return window['go']['main']['App']['AddVideoDownloads'](arg1);
 }

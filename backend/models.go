@@ -34,6 +34,7 @@ type DownloadItem struct {
 	Title        string           `json:"title"`
 	Quality      string           `json:"quality"`
 	MediaType    MediaType        `json:"media_type,omitempty"`
+	AudioFormat  *AudioFormat     `json:"audio_format,omitempty"`
 	VideoFormat  *VideoFormat     `json:"video_format,omitempty"`
 	Status       DownloadStatus   `json:"status"`
 	Progress     DownloadProgress `json:"progress"`
@@ -44,6 +45,17 @@ type DownloadItem struct {
 	CreatedAt    string           `json:"created_at"`
 	StartedAt    string           `json:"started_at,omitempty"`
 	CompletedAt  string           `json:"completed_at,omitempty"`
+}
+
+type AudioFormat struct {
+	FormatID   string `json:"format_id"`
+	Container  string `json:"container"`
+	Extension  string `json:"extension"`
+	AudioCodec string `json:"audio_codec,omitempty"`
+	Bitrate    int    `json:"bitrate,omitempty"`
+	SampleRate int    `json:"sample_rate,omitempty"`
+	Protocol   string `json:"protocol,omitempty"`
+	Label      string `json:"label"`
 }
 
 // VideoFormat identifies a video stream and the audio stream needed to play it.
@@ -65,6 +77,12 @@ type VideoInfo struct {
 	Title        string        `json:"title"`
 	ThumbnailURL string        `json:"thumbnail_url,omitempty"`
 	Formats      []VideoFormat `json:"formats"`
+	AudioFormats []AudioFormat `json:"audio_formats,omitempty"`
+}
+
+type AudioDownloadRequest struct {
+	URL    string      `json:"url"`
+	Format AudioFormat `json:"format"`
 }
 
 type VideoDownloadRequest struct {

@@ -117,39 +117,55 @@ func (a *App) processDownload(ctx context.Context, item *DownloadItem) {
 		return
 	}
 	tempPath := filepath.Join(a.cacheDir, item.ID+".tmp")
-	defer os.Remove(tempPath)
 	if coverPath != "" {
 		defer os.Remove(coverPath)
 	}
 
 	lastProgressEvent := time.Time{}
-	_, err = session.DownloadAudio(ctx, video, tempPath, func(percent float64, downloaded, total int64) {
+	updateProgress := func(progress mediaDownloadProgress) {
 		a.mu.Lock()
 		if a.isActiveItemLocked(item.ID) {
-			item.Progress.Percent = percent
-			item.Progress.DownloadedBytes = downloaded
-			item.Progress.TotalBytes = total
+			item.Progress.Percent = progress.Percent
+			item.Progress.DownloadedBytes = progress.DownloadedBytes
+			item.Progress.TotalBytes = progress.TotalBytes
+			if progress.Speed != "" {
+				item.Progress.Speed = progress.Speed
+			}
+			if progress.ETA != "" {
+				item.Progress.ETA = progress.ETA
+			}
 		}
 		a.mu.Unlock()
 		now := time.Now()
-		if percent >= 100 || lastProgressEvent.IsZero() || now.Sub(lastProgressEvent) >= 200*time.Millisecond {
+		if progress.Percent >= 100 || lastProgressEvent.IsZero() || now.Sub(lastProgressEvent) >= 200*time.Millisecond {
 			lastProgressEvent = now
 			a.emitItemUpdate(item.ID)
 		}
-	})
-	if err != nil {
-		if ctx.Err() != nil {
-			a.cleanupInterruptedDownload(item.ID, "")
+	}
+
+	sourcePath, downloadErr := downloadAudioWithYTDLP(ctx, item.URL, item.AudioFormat, ytDLPOutputTemplate(a.cacheDir, item.ID+"-audio"), updateProgress)
+	if downloadErr != nil {
+		defer os.Remove(tempPath)
+		_, err = session.DownloadAudio(ctx, video, tempPath, func(percent float64, downloaded, total int64) {
+			updateProgress(mediaDownloadProgress{Percent: percent, DownloadedBytes: downloaded, TotalBytes: total})
+		})
+		if err != nil {
+			if ctx.Err() != nil {
+				a.cleanupInterruptedDownload(item.ID, "")
+				return
+			}
+			a.updateError(item.ID, FormatOperationError("download", downloadErr, a.currentLanguage()))
 			return
 		}
-		a.updateError(item.ID, FormatOperationError("download", err, a.currentLanguage()))
-		return
+		sourcePath = tempPath
+	} else {
+		defer os.Remove(sourcePath)
 	}
 
 	if !a.setActiveItemStatus(item.ID, StatusConverting) {
 		return
 	}
-	if err := convertAndPublish(ctx, tempPath, outputPath, item.Quality, musicMeta, coverPath); err != nil {
+	if err := convertAndPublish(ctx, sourcePath, outputPath, item.Quality, musicMeta, coverPath); err != nil {
 		if ctx.Err() != nil {
 			a.cleanupInterruptedDownload(item.ID, "")
 			return
@@ -245,6 +261,61 @@ func (a *App) processVideoDownload(ctx context.Context, item *DownloadItem, sess
 	if !a.setActiveItemStatus(item.ID, StatusDownloading) {
 		return
 	}
+	videoTemplate := ytDLPOutputTemplate(a.cacheDir, item.ID+"-video")
+	ytDLPVideoErr := error(nil)
+	if ytDLPPath, err := downloadVideoWithYTDLP(ctx, item.URL, format, videoTemplate, func(progress mediaDownloadProgress) {
+		a.mu.Lock()
+		if a.isActiveItemLocked(item.ID) {
+			item.Progress.Percent = progress.Percent
+			item.Progress.DownloadedBytes = progress.DownloadedBytes
+			item.Progress.TotalBytes = progress.TotalBytes
+			if progress.Speed != "" {
+				item.Progress.Speed = progress.Speed
+			}
+			if progress.ETA != "" {
+				item.Progress.ETA = progress.ETA
+			}
+		}
+		a.mu.Unlock()
+		a.emitItemUpdate(item.ID)
+	}); err == nil {
+		defer os.Remove(ytDLPPath)
+		partPath := outputPath + ".part"
+		defer os.Remove(partPath)
+		if err := copyFile(ytDLPPath, partPath); err != nil {
+			a.updateError(item.ID, FormatOperationError("finalize", err, a.currentLanguage()))
+			return
+		}
+		if err := publishConvertedFile(partPath, outputPath); err != nil {
+			a.updateError(item.ID, FormatOperationError("finalize", err, a.currentLanguage()))
+			return
+		}
+
+		fileInfo, err := os.Stat(outputPath)
+		if err != nil {
+			a.updateError(item.ID, FormatOperationError("finalize", err, a.currentLanguage()))
+			return
+		}
+		a.mu.Lock()
+		if !a.isActiveItemLocked(item.ID) {
+			a.mu.Unlock()
+			os.Remove(outputPath)
+			return
+		}
+		item.Status = StatusCompleted
+		item.FilePath = outputPath
+		item.FileSize = fileInfo.Size()
+		item.CompletedAt = time.Now().Format(time.RFC3339)
+		item.Progress.Percent = 100
+		a.mu.Unlock()
+		a.persistQueue()
+		a.emitItemUpdate(item.ID)
+		a.emitStats()
+		return
+	} else {
+		ytDLPVideoErr = err
+	}
+
 	videoPath := filepath.Join(a.cacheDir, item.ID+".video.tmp")
 	audioPath := filepath.Join(a.cacheDir, item.ID+".audio.tmp")
 	defer os.Remove(videoPath)
@@ -268,6 +339,9 @@ func (a *App) processVideoDownload(ctx context.Context, item *DownloadItem, sess
 		updateProgress(percent, downloaded, total)
 	})
 	if err != nil {
+		if ytDLPVideoErr != nil {
+			err = ytDLPVideoErr
+		}
 		a.handleVideoDownloadError(ctx, item, err)
 		return
 	}
@@ -276,6 +350,9 @@ func (a *App) processVideoDownload(ctx context.Context, item *DownloadItem, sess
 			updateProgress(50+percent/2, videoStream.ContentLength+downloaded, videoStream.ContentLength+total)
 		})
 		if err != nil {
+			if ytDLPVideoErr != nil {
+				err = ytDLPVideoErr
+			}
 			a.handleVideoDownloadError(ctx, item, err)
 			return
 		}

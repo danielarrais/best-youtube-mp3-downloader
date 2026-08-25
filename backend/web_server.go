@@ -26,6 +26,7 @@ type addDownloadsRequest struct {
 	URLs          []string               `json:"urls"`
 	Quality       string                 `json:"quality"`
 	MediaType     MediaType              `json:"media_type,omitempty"`
+	AudioRequests []AudioDownloadRequest `json:"audio_requests,omitempty"`
 	VideoRequests []VideoDownloadRequest `json:"video_requests,omitempty"`
 }
 
@@ -97,6 +98,25 @@ func (s *webServer) addDownloads(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		writeJSON(w, http.StatusCreated, s.app.AddVideoDownloads(request.VideoRequests))
+		return
+	}
+	if len(request.AudioRequests) > 0 {
+		for _, audioRequest := range request.AudioRequests {
+			if strings.TrimSpace(audioRequest.URL) == "" || strings.TrimSpace(audioRequest.Format.FormatID) == "" {
+				writeAPIError(w, http.StatusBadRequest, errors.New("invalid audio request"))
+				return
+			}
+		}
+		if request.Quality == "" {
+			request.Quality = s.app.GetConfig().Quality
+		}
+		switch request.Quality {
+		case "128k", "192k", "320k":
+		default:
+			writeAPIError(w, http.StatusBadRequest, errors.New("invalid quality"))
+			return
+		}
+		writeJSON(w, http.StatusCreated, s.app.AddAudioDownloads(request.AudioRequests, request.Quality))
 		return
 	}
 	if request.MediaType != "" && request.MediaType != MediaTypeAudio {

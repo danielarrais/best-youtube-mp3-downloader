@@ -24,6 +24,7 @@ export interface DownloadItem {
   progress: DownloadProgress;
   quality: string;
   media_type?: 'audio' | 'video';
+  audio_format?: AudioFormat;
   video_format?: VideoFormat;
   file_path?: string;
   file_size?: number;
@@ -32,6 +33,17 @@ export interface DownloadItem {
   created_at: string;
   started_at?: string;
   completed_at?: string;
+}
+
+export interface AudioFormat {
+  format_id: string;
+  container: string;
+  extension: string;
+  audio_codec?: string;
+  bitrate?: number;
+  sample_rate?: number;
+  protocol?: string;
+  label: string;
 }
 
 export interface VideoFormat {
@@ -51,6 +63,12 @@ export interface VideoInfo {
   title: string;
   thumbnail_url?: string;
   formats: VideoFormat[];
+  audio_formats?: AudioFormat[];
+}
+
+export interface AudioDownloadRequest {
+  url: string;
+  format: AudioFormat;
 }
 
 export interface VideoDownloadRequest {

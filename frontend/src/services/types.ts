@@ -1,4 +1,5 @@
 import {
+	AudioDownloadRequest,
   Config,
   DownloadItem,
   PlaylistInfo,
@@ -18,6 +19,7 @@ export interface AppAPI {
     nativeFolders: boolean;
   };
   addDownloads(urls: string[], quality: string): Promise<DownloadItem[]>;
+  addAudioDownloads(requests: AudioDownloadRequest[], quality: string): Promise<DownloadItem[]>;
   addVideoDownloads(requests: VideoDownloadRequest[]): Promise<DownloadItem[]>;
   getVideoFormats(url: string): Promise<VideoInfo>;
   getDownloads(): Promise<DownloadItem[]>;

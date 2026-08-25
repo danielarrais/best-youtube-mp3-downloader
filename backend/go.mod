@@ -10,6 +10,8 @@ require (
 	golang.org/x/sys v0.45.0
 )
 
+replace github.com/kkdai/youtube/v2 => ./third_party/youtube-v2
+
 require (
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
 	github.com/bep/debounce v1.2.1 // indirect

@@ -25,6 +25,7 @@ function App() {
     downloads,
     stats,
     addDownloads,
+    addAudioDownloads,
     addVideoDownloads,
     cancelDownload,
     removeDownload,
@@ -64,7 +65,7 @@ function App() {
       
       <main className="mx-auto max-w-4xl space-y-6 px-4 py-4 sm:px-6 sm:py-8">
         <UrlInput
-          onSubmitAudio={addDownloads}
+          onSubmitAudio={addAudioDownloads}
           onSubmitVideo={addVideoDownloads}
           settingsOpen={settingsOpen}
           onOpenSettings={() => setSettingsOpen(true)}
