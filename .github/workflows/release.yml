@@ -127,10 +127,10 @@ jobs:
         run: |
           filename="ffmpeg-master-latest-linux64-gpl.tar.xz"
           mkdir -p backend/build/linux/package /tmp/ffmpeg
-          curl --fail --location --retry 3 \
+          curl --fail --location --show-error --retry 8 --retry-all-errors --retry-delay 5 \
             "$FFMPEG_BASE_URL/checksums.sha256" \
             --output /tmp/checksums.sha256
-          curl --fail --location --retry 3 \
+          curl --fail --location --show-error --retry 8 --retry-all-errors --retry-delay 5 \
             "$FFMPEG_BASE_URL/$filename" \
             --output "/tmp/$filename"
           grep "  $filename$" /tmp/checksums.sha256 \
@@ -150,10 +150,10 @@ jobs:
         run: |
           filename="yt-dlp_linux"
           mkdir -p backend/build/linux/package
-          curl --fail --location --retry 3 \
+          curl --fail --location --show-error --retry 8 --retry-all-errors --retry-delay 5 \
             "$YTDLP_BASE_URL/SHA2-256SUMS" \
             --output /tmp/ytdlp-checksums.sha256
-          curl --fail --location --retry 3 \
+          curl --fail --location --show-error --retry 8 --retry-all-errors --retry-delay 5 \
             "$YTDLP_BASE_URL/$filename" \
             --output "/tmp/$filename"
           grep "  $filename$" /tmp/ytdlp-checksums.sha256 \
@@ -268,12 +268,23 @@ jobs:
           $archive = Join-Path $env:RUNNER_TEMP $filename
           $checksums = Join-Path $env:RUNNER_TEMP "checksums.sha256"
           $extract = Join-Path $env:RUNNER_TEMP "ffmpeg"
-          Invoke-WebRequest `
-            -Uri "$env:FFMPEG_BASE_URL/checksums.sha256" `
-            -OutFile $checksums
-          Invoke-WebRequest `
-            -Uri "$env:FFMPEG_BASE_URL/$filename" `
-            -OutFile $archive
+          function Invoke-DownloadWithRetry($Uri, $OutFile) {
+            for ($attempt = 1; $attempt -le 8; $attempt++) {
+              try {
+                Invoke-WebRequest -Uri $Uri -OutFile $OutFile
+                return
+              } catch {
+                if ($attempt -eq 8) { throw }
+                Start-Sleep -Seconds 5
+              }
+            }
+          }
+          Invoke-DownloadWithRetry `
+            "$env:FFMPEG_BASE_URL/checksums.sha256" `
+            $checksums
+          Invoke-DownloadWithRetry `
+            "$env:FFMPEG_BASE_URL/$filename" `
+            $archive
           $line = Get-Content $checksums |
             Where-Object { $_ -match "  $([regex]::Escape($filename))$" } |
             Select-Object -First 1
@@ -303,12 +314,23 @@ jobs:
           $filename = "yt-dlp.exe"
           $binary = Join-Path $env:RUNNER_TEMP $filename
           $checksums = Join-Path $env:RUNNER_TEMP "ytdlp-SHA2-256SUMS"
-          Invoke-WebRequest `
-            -Uri "$env:YTDLP_BASE_URL/SHA2-256SUMS" `
-            -OutFile $checksums
-          Invoke-WebRequest `
-            -Uri "$env:YTDLP_BASE_URL/$filename" `
-            -OutFile $binary
+          function Invoke-DownloadWithRetry($Uri, $OutFile) {
+            for ($attempt = 1; $attempt -le 8; $attempt++) {
+              try {
+                Invoke-WebRequest -Uri $Uri -OutFile $OutFile
+                return
+              } catch {
+                if ($attempt -eq 8) { throw }
+                Start-Sleep -Seconds 5
+              }
+            }
+          }
+          Invoke-DownloadWithRetry `
+            "$env:YTDLP_BASE_URL/SHA2-256SUMS" `
+            $checksums
+          Invoke-DownloadWithRetry `
+            "$env:YTDLP_BASE_URL/$filename" `
+            $binary
           $line = Get-Content $checksums |
             Where-Object { $_ -match "  $([regex]::Escape($filename))$" } |
             Select-Object -First 1
