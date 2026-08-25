@@ -113,8 +113,8 @@ and uses the same `1` to `8` safe range.
 
 ## Web with Docker
 
-The image contains the backend, compiled frontend, `yt-dlp` with `curl-cffi`, a
-checksum-verified [BtbN FFmpeg build](https://github.com/BtbN/FFmpeg-Builds),
+The image contains the backend, compiled frontend, checksum-verified standalone
+`yt-dlp`, a checksum-verified [BtbN FFmpeg build](https://github.com/BtbN/FFmpeg-Builds),
 and TLS certificates. The pipeline will publish `linux/amd64` and `linux/arm64`
 images to:
 

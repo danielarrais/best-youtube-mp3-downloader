@@ -50,25 +50,44 @@ RUN case "$TARGETARCH" in \
     && test -n "$ffmpeg_path" \
     && install -m 0755 "$ffmpeg_path" /out/ffmpeg
 
+FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS ytdlp
+
+ARG TARGETARCH
+ARG YTDLP_BASE_URL=https://github.com/yt-dlp/yt-dlp/releases/latest/download
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+RUN case "$TARGETARCH" in \
+        amd64) filename="yt-dlp_linux" ;; \
+        arm64) filename="yt-dlp_linux_aarch64" ;; \
+        *) echo "unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
+    esac \
+    && curl --fail --location --retry 3 \
+        "$YTDLP_BASE_URL/SHA2-256SUMS" \
+        --output /tmp/ytdlp-checksums.sha256 \
+    && curl --fail --location --retry 3 \
+        "$YTDLP_BASE_URL/$filename" \
+        --output "/tmp/$filename" \
+    && grep "  $filename$" /tmp/ytdlp-checksums.sha256 \
+        > /tmp/ytdlp-checksum.sha256 \
+    && (cd /tmp && sha256sum --check ytdlp-checksum.sha256) \
+    && mkdir -p /out \
+    && install -m 0755 "/tmp/$filename" /out/yt-dlp \
+    && /out/yt-dlp --version
+
 FROM debian:bookworm-slim
 
 RUN apt-get update \
 	&& apt-get install --yes --no-install-recommends \
 		ca-certificates \
-		nodejs \
-		python3 \
-		python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
-RUN python3 -m venv /opt/yt-dlp \
-    && /opt/yt-dlp/bin/pip install --no-cache-dir --upgrade pip \
-    && /opt/yt-dlp/bin/pip install --no-cache-dir yt-dlp curl-cffi
-
 COPY --from=ffmpeg /out/ffmpeg /usr/local/bin/ffmpeg
+COPY --from=ytdlp /out/yt-dlp /usr/local/bin/yt-dlp
 COPY --from=backend /out/youtube-mp3-downloader /usr/local/bin/youtube-mp3-downloader
 
-ENV PATH=/opt/yt-dlp/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-    WEB_ADDR=:8080 \
+ENV WEB_ADDR=:8080 \
     DATA_DIR=/data \
     DOWNLOAD_DIR=/downloads \
     HEALTHCHECK_URL=http://127.0.0.1:8080/healthz \
