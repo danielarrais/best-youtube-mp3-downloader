@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 const (
@@ -12,6 +13,7 @@ const (
 	defaultVideoQuality   = "1080p"
 	defaultAudioBitrate   = "192k"
 	defaultTheme          = "dark"
+	maxParallelDownloads  = 8
 	FileDeletionDelete    = "delete"
 	FileDeletionAsk       = "ask"
 	FileDeletionKeep      = "keep"
@@ -28,6 +30,7 @@ type Config struct {
 	FileDeletion       string `json:"file_deletion"`
 	Language           string `json:"language"`
 	Theme              string `json:"theme"`
+	ParallelDownloads  int    `json:"parallel_downloads"`
 }
 
 func defaultConfig(home string) Config {
@@ -42,7 +45,32 @@ func defaultConfig(home string) Config {
 		FileDeletion:       FileDeletionAsk,
 		Language:           "pt-BR",
 		Theme:              defaultTheme,
+		ParallelDownloads:  defaultParallelDownloads(),
 	}
+}
+
+func defaultParallelDownloads() int {
+	cores := runtime.NumCPU()
+	if cores < 2 {
+		return 1
+	}
+	return normalizeParallelDownloads(cores/2, 1)
+}
+
+func normalizeParallelDownloads(value, fallback int) int {
+	if fallback < 1 {
+		fallback = 1
+	}
+	if fallback > maxParallelDownloads {
+		fallback = maxParallelDownloads
+	}
+	if value < 1 {
+		return fallback
+	}
+	if value > maxParallelDownloads {
+		return maxParallelDownloads
+	}
+	return value
 }
 
 func normalizeConfig(config, defaults Config) Config {
@@ -98,6 +126,7 @@ func normalizeConfig(config, defaults Config) Config {
 	if config.Theme == "" {
 		config.Theme = defaultTheme
 	}
+	config.ParallelDownloads = normalizeParallelDownloads(config.ParallelDownloads, defaults.ParallelDownloads)
 	return config
 }
 

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 )
@@ -30,8 +31,10 @@ func main() {
 	address := envOrDefault("WEB_ADDR", ":8080")
 	dataDir := envOrDefault("DATA_DIR", "/data")
 	downloadDir := envOrDefault("DOWNLOAD_DIR", "/downloads")
+	parallelDownloads := normalizeParallelDownloads(envIntOrDefault("MAX_PARALLEL_DOWNLOADS", 2), 2)
 
 	app := NewAppWithPaths(dataDir, downloadDir)
+	app.setParallelDownloadsOverride(parallelDownloads)
 	app.start()
 	defer app.stop()
 
@@ -81,4 +84,16 @@ func envOrDefault(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func envIntOrDefault(name string, fallback int) int {
+	value := os.Getenv(name)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }

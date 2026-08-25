@@ -254,9 +254,10 @@ func TestWebRejectsIncompleteDownloadFile(t *testing.T) {
 
 func TestWebConfigKeepsServerDownloadDirectory(t *testing.T) {
 	app := newWebTestApp(t)
+	app.setParallelDownloadsOverride(5)
 	handler := newWebHandler(app, testAssets(), app.config.DownloadDir)
 	request := httptest.NewRequest(http.MethodPut, "/api/config", strings.NewReader(
-		`{"download_dir":"/tmp/other","quality":"160k","audio_bitrate_target":"160k","video_container":"webm","video_quality":"720p","ask_audio_quality":false,"ask_video_quality":false,"file_deletion":"keep","language":"en-US","theme":"light"}`,
+		`{"download_dir":"/tmp/other","quality":"160k","audio_bitrate_target":"160k","video_container":"webm","video_quality":"720p","ask_audio_quality":false,"ask_video_quality":false,"file_deletion":"keep","language":"en-US","theme":"light","parallel_downloads":2}`,
 	))
 	response := httptest.NewRecorder()
 
@@ -284,6 +285,50 @@ func TestWebConfigKeepsServerDownloadDirectory(t *testing.T) {
 	if config.Theme != "light" {
 		t.Fatalf("theme = %q", config.Theme)
 	}
+	if config.ParallelDownloads != 5 {
+		t.Fatalf("parallel downloads = %d, want env override", config.ParallelDownloads)
+	}
+}
+
+func TestWebConfigExposesEffectiveParallelDownloads(t *testing.T) {
+	app := newWebTestApp(t)
+	app.setParallelDownloadsOverride(6)
+	handler := newWebHandler(app, testAssets(), app.config.DownloadDir)
+	request := httptest.NewRequest(http.MethodGet, "/api/config", nil)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var config Config
+	if err := json.Unmarshal(response.Body.Bytes(), &config); err != nil {
+		t.Fatal(err)
+	}
+	if config.ParallelDownloads != 6 {
+		t.Fatalf("parallel downloads = %d, want 6", config.ParallelDownloads)
+	}
+	if app.effectiveParallelDownloads() != 6 {
+		t.Fatalf("effective parallel downloads = %d, want 6", app.effectiveParallelDownloads())
+	}
+}
+
+func TestWebParallelDownloadsEnvFallback(t *testing.T) {
+	t.Setenv("MAX_PARALLEL_DOWNLOADS", "invalid")
+	if got := normalizeParallelDownloads(envIntOrDefault("MAX_PARALLEL_DOWNLOADS", 2), 2); got != 2 {
+		t.Fatalf("invalid env parallel downloads = %d, want fallback", got)
+	}
+
+	t.Setenv("MAX_PARALLEL_DOWNLOADS", "0")
+	if got := normalizeParallelDownloads(envIntOrDefault("MAX_PARALLEL_DOWNLOADS", 2), 2); got != 2 {
+		t.Fatalf("zero env parallel downloads = %d, want fallback", got)
+	}
+
+	t.Setenv("MAX_PARALLEL_DOWNLOADS", "99")
+	if got := normalizeParallelDownloads(envIntOrDefault("MAX_PARALLEL_DOWNLOADS", 2), 2); got != maxParallelDownloads {
+		t.Fatalf("large env parallel downloads = %d, want %d", got, maxParallelDownloads)
+	}
 }
 
 func newWebTestApp(t *testing.T) *App {
@@ -305,6 +350,7 @@ func newWebTestApp(t *testing.T) *App {
 		FileDeletion:       FileDeletionAsk,
 		Language:           "pt-BR",
 		Theme:              defaultTheme,
+		ParallelDownloads:  2,
 	}
 	return app
 }

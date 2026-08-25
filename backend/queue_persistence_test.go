@@ -17,7 +17,9 @@ func newPersistenceTestApp(t *testing.T) *App {
 		t.Fatal(err)
 	}
 	return &App{
+		config:     defaultConfig(root),
 		items:      make(map[string]*DownloadItem),
+		active:     make(map[string]context.CancelFunc),
 		queueOrder: make([]string, 0),
 		cacheDir:   cacheDir,
 		queuePath:  filepath.Join(root, "config", "queue.json"),
@@ -88,8 +90,7 @@ func TestPauseQueueCancelsActiveItemAndReturnsItToPending(t *testing.T) {
 		Progress:  DownloadProgress{Percent: 42},
 	}
 	app.queueOrder = []string{"active"}
-	app.activeID = "active"
-	app.activeStop = cancel
+	app.active["active"] = cancel
 
 	app.PauseQueue()
 
@@ -119,8 +120,7 @@ func TestCancelDownloadCancelsActiveOperation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	app.items["active"] = &DownloadItem{ID: "active", Status: StatusDownloading}
 	app.queueOrder = []string{"active"}
-	app.activeID = "active"
-	app.activeStop = cancel
+	app.active["active"] = cancel
 
 	app.CancelDownload("active")
 
@@ -141,8 +141,7 @@ func TestCancelAllCancelsActiveAndPendingItems(t *testing.T) {
 	app.items["pending"] = &DownloadItem{ID: "pending", Status: StatusPending}
 	app.items["completed"] = &DownloadItem{ID: "completed", Status: StatusCompleted}
 	app.queueOrder = []string{"active", "pending", "completed"}
-	app.activeID = "active"
-	app.activeStop = cancel
+	app.active["active"] = cancel
 
 	app.CancelAll()
 
@@ -157,6 +156,57 @@ func TestCancelAllCancelsActiveAndPendingItems(t *testing.T) {
 	}
 	if app.items["completed"].Status != StatusCompleted {
 		t.Fatal("CancelAll should not change completed items")
+	}
+}
+
+func TestPauseQueueCancelsAllActiveItemsAndReturnsThemToPending(t *testing.T) {
+	app := newPersistenceTestApp(t)
+	firstCtx, firstCancel := context.WithCancel(context.Background())
+	secondCtx, secondCancel := context.WithCancel(context.Background())
+	app.items["active-1"] = &DownloadItem{ID: "active-1", Status: StatusDownloading, Progress: DownloadProgress{Percent: 25}}
+	app.items["active-2"] = &DownloadItem{ID: "active-2", Status: StatusConverting, Progress: DownloadProgress{Percent: 75}}
+	app.queueOrder = []string{"active-1", "active-2"}
+	app.active["active-1"] = firstCancel
+	app.active["active-2"] = secondCancel
+
+	app.PauseQueue()
+
+	for name, ctx := range map[string]context.Context{"active-1": firstCtx, "active-2": secondCtx} {
+		select {
+		case <-ctx.Done():
+		default:
+			t.Fatalf("PauseQueue did not cancel %s", name)
+		}
+		if app.items[name].Status != StatusPending || app.items[name].Progress.Percent != 0 {
+			t.Fatalf("%s was not reset for pause: %#v", name, app.items[name])
+		}
+	}
+}
+
+func TestCancelAllCancelsMultipleActiveItems(t *testing.T) {
+	app := newPersistenceTestApp(t)
+	firstCtx, firstCancel := context.WithCancel(context.Background())
+	secondCtx, secondCancel := context.WithCancel(context.Background())
+	app.items["active-1"] = &DownloadItem{ID: "active-1", Status: StatusDownloading}
+	app.items["active-2"] = &DownloadItem{ID: "active-2", Status: StatusConverting}
+	app.items["pending"] = &DownloadItem{ID: "pending", Status: StatusPending}
+	app.queueOrder = []string{"active-1", "active-2", "pending"}
+	app.active["active-1"] = firstCancel
+	app.active["active-2"] = secondCancel
+
+	app.CancelAll()
+
+	for name, ctx := range map[string]context.Context{"active-1": firstCtx, "active-2": secondCtx} {
+		select {
+		case <-ctx.Done():
+		default:
+			t.Fatalf("CancelAll did not cancel %s", name)
+		}
+	}
+	for _, id := range []string{"active-1", "active-2", "pending"} {
+		if app.items[id].Status != StatusCancelled {
+			t.Fatalf("%s status = %s, want cancelled", id, app.items[id].Status)
+		}
 	}
 }
 

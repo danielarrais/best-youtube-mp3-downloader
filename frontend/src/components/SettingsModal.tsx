@@ -13,6 +13,7 @@ interface SettingsModalProps {
   askVideoQuality: boolean;
   language: Language;
   theme: Theme;
+  parallelDownloads: number;
   onThemePreview: (theme: Theme) => void;
   onChooseFolder: () => Promise<string | undefined>;
   onClose: () => void;
@@ -25,6 +26,7 @@ interface SettingsModalProps {
     askVideoQuality: boolean,
     language: Language,
     theme: Theme,
+    parallelDownloads: number,
   ) => Promise<void>;
   canChooseFolder: boolean;
 }
@@ -38,6 +40,7 @@ export function SettingsModal({
   askVideoQuality,
   language,
   theme,
+  parallelDownloads,
   onThemePreview,
   onChooseFolder,
   onClose,
@@ -53,6 +56,7 @@ export function SettingsModal({
   const [selectedAskVideoQuality, setSelectedAskVideoQuality] = useState(askVideoQuality);
   const [selectedLanguage, setSelectedLanguage] = useState(language);
   const [selectedTheme, setSelectedTheme] = useState(theme);
+  const [selectedParallelDownloads, setSelectedParallelDownloads] = useState(parallelDownloads);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -92,6 +96,7 @@ export function SettingsModal({
         selectedAskVideoQuality,
         selectedLanguage,
         selectedTheme,
+        selectedParallelDownloads,
       );
     } catch {
       setError(t.settingsSaveError);
@@ -121,6 +126,21 @@ export function SettingsModal({
               >
                 {t.chooseFolder}
               </button>
+            </div>
+          )}
+
+          {canChooseFolder && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">{t.parallelDownloads}</label>
+              <input
+                type="number"
+                min={1}
+                max={8}
+                value={selectedParallelDownloads}
+                onChange={(event) => setSelectedParallelDownloads(Number(event.target.value))}
+                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-red-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              />
+              <p className="text-xs text-slate-500 dark:text-gray-400">{t.parallelDownloadsHelp}</p>
             </div>
           )}
 

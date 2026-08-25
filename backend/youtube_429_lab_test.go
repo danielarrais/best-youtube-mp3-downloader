@@ -120,7 +120,8 @@ func registerYouTube429LabItem(app *App, item *DownloadItem) {
 	app.mu.Lock()
 	app.items[item.ID] = item
 	app.queueOrder = append(app.queueOrder, item.ID)
-	app.activeID = item.ID
+	app.ensureActiveMapLocked()
+	app.active[item.ID] = func() {}
 	app.mu.Unlock()
 }
 
@@ -129,10 +130,7 @@ func assertYouTube429LabCompleted(t *testing.T, app *App, item *DownloadItem, wa
 
 	defer func() {
 		app.mu.Lock()
-		if app.activeID == item.ID {
-			app.activeID = ""
-			app.activeStop = nil
-		}
+		delete(app.active, item.ID)
 		app.mu.Unlock()
 	}()
 

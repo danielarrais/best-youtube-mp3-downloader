@@ -8,7 +8,17 @@ import (
 func (a *App) GetConfig() Config {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.config
+	config := a.config
+	config.ParallelDownloads = a.maxParallelDownloadsLocked()
+	return config
+}
+
+func (a *App) setParallelDownloadsOverride(value int) {
+	a.mu.Lock()
+	a.parallelOverride = normalizeParallelDownloads(value, defaultParallelDownloads())
+	a.config.ParallelDownloads = a.parallelOverride
+	a.mu.Unlock()
+	a.signalWorker()
 }
 
 func (a *App) SaveConfig(config Config) (Config, error) {
@@ -30,7 +40,8 @@ func (a *App) SaveConfig(config Config) (Config, error) {
 	a.mu.Lock()
 	a.config = config
 	a.mu.Unlock()
-	return config, nil
+	a.signalWorker()
+	return a.GetConfig(), nil
 }
 
 func (a *App) SetLanguage(language string) {

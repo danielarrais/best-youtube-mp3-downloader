@@ -28,6 +28,8 @@ export interface Translations {
   theme: string;
   themeDark: string;
   themeLight: string;
+  parallelDownloads: string;
+  parallelDownloadsHelp: string;
   addToQueue: string;
   settings: string;
   downloadFolder: string;
@@ -110,6 +112,8 @@ export const translations: Record<Language, Translations> = {
     theme: 'Tema',
     themeDark: 'Escuro',
     themeLight: 'Claro',
+    parallelDownloads: 'Downloads paralelos',
+    parallelDownloadsHelp: 'Quantos itens podem baixar ao mesmo tempo neste computador.',
     addToQueue: 'Adicionar à Fila',
     settings: 'Configurações',
     downloadFolder: 'Pasta de download',
@@ -184,6 +188,8 @@ export const translations: Record<Language, Translations> = {
     theme: 'Theme',
     themeDark: 'Dark',
     themeLight: 'Light',
+    parallelDownloads: 'Parallel downloads',
+    parallelDownloadsHelp: 'How many items can download at the same time on this computer.',
     addToQueue: 'Add to Queue',
     settings: 'Settings',
     downloadFolder: 'Download folder',

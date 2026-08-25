@@ -117,4 +117,5 @@ export interface Config {
   file_deletion: 'delete' | 'ask' | 'keep';
   language: string;
   theme: 'dark' | 'light';
+  parallel_downloads: number;
 }

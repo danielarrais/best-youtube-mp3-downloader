@@ -19,6 +19,7 @@ func TestConfigFileRoundTrip(t *testing.T) {
 		FileDeletion:       FileDeletionKeep,
 		Language:           "en-US",
 		Theme:              defaultTheme,
+		ParallelDownloads:  3,
 	}
 	if err := saveConfigFile(path, want); err != nil {
 		t.Fatal(err)
@@ -44,14 +45,16 @@ func TestNormalizeConfigUsesDefaults(t *testing.T) {
 		FileDeletion:       FileDeletionAsk,
 		Language:           "pt-BR",
 		Theme:              defaultTheme,
+		ParallelDownloads:  4,
 	}
 	got := normalizeConfig(Config{
-		Quality:        "invalid",
-		VideoContainer: "invalid",
-		VideoQuality:   "invalid",
-		FileDeletion:   "invalid",
-		Language:       "invalid",
-		Theme:          "invalid",
+		Quality:           "invalid",
+		VideoContainer:    "invalid",
+		VideoQuality:      "invalid",
+		FileDeletion:      "invalid",
+		Language:          "invalid",
+		Theme:             "invalid",
+		ParallelDownloads: -1,
 	}, defaults)
 	defaults.AskAudioQuality = false
 	defaults.AskVideoQuality = false
@@ -72,7 +75,19 @@ func TestLoadConfigDefaultsMissingAskQualityFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.AudioBitrateTarget != "128k" || !got.AskAudioQuality || !got.AskVideoQuality {
+	if got.AudioBitrateTarget != "128k" || !got.AskAudioQuality || !got.AskVideoQuality || got.ParallelDownloads != defaultParallelDownloads() {
 		t.Fatalf("legacy config migration = %#v", got)
+	}
+}
+
+func TestNormalizeParallelDownloadsClampsToSafeRange(t *testing.T) {
+	if got := normalizeParallelDownloads(0, 3); got != 3 {
+		t.Fatalf("zero parallel downloads = %d, want fallback", got)
+	}
+	if got := normalizeParallelDownloads(99, 3); got != maxParallelDownloads {
+		t.Fatalf("large parallel downloads = %d, want %d", got, maxParallelDownloads)
+	}
+	if got := normalizeParallelDownloads(2, 3); got != 2 {
+		t.Fatalf("valid parallel downloads = %d, want 2", got)
 	}
 }

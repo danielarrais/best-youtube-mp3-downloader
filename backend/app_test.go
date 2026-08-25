@@ -5,7 +5,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestCleanYouTubeURL(t *testing.T) {
@@ -176,6 +178,122 @@ func TestCleanupPartialFilesRemovesKnownMediaParts(t *testing.T) {
 	if _, err := os.Stat(otherPath); err != nil {
 		t.Fatalf("unrelated file was removed: %v", err)
 	}
+}
+
+func TestStartAvailableDownloadsHonorsParallelLimit(t *testing.T) {
+	app := newParallelSchedulerTestApp(t, 2, []string{"first", "second", "third"})
+	release := make(chan struct{})
+	started := make(chan string, 3)
+	app.processDownloadFunc = func(ctx context.Context, item *DownloadItem) {
+		started <- item.ID
+		select {
+		case <-ctx.Done():
+		case <-release:
+		}
+	}
+	t.Cleanup(func() { close(release) })
+
+	app.startAvailableDownloads()
+	waitForCondition(t, func() bool { return len(started) == 2 })
+
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if len(app.active) != 2 {
+		t.Fatalf("active downloads = %d, want 2", len(app.active))
+	}
+	if app.items["first"].Status != StatusFetching || app.items["second"].Status != StatusFetching {
+		t.Fatalf("first two items should be fetching: %#v", app.items)
+	}
+	if app.items["third"].Status != StatusPending {
+		t.Fatalf("third item status = %s, want pending", app.items["third"].Status)
+	}
+}
+
+func TestStartAvailableDownloadsFillsFreedSlot(t *testing.T) {
+	app := newParallelSchedulerTestApp(t, 2, []string{"first", "second", "third"})
+	releases := map[string]*testRelease{
+		"first":  newTestRelease(),
+		"second": newTestRelease(),
+		"third":  newTestRelease(),
+	}
+	var mu sync.Mutex
+	started := make([]string, 0, 3)
+	app.processDownloadFunc = func(ctx context.Context, item *DownloadItem) {
+		mu.Lock()
+		started = append(started, item.ID)
+		mu.Unlock()
+		select {
+		case <-ctx.Done():
+		case <-releases[item.ID].ch:
+		}
+	}
+	t.Cleanup(func() {
+		for _, release := range releases {
+			release.close()
+		}
+	})
+
+	app.startAvailableDownloads()
+	waitForCondition(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(started) == 2
+	})
+	releases["first"].close()
+	waitForCondition(t, func() bool {
+		app.mu.Lock()
+		defer app.mu.Unlock()
+		_, active := app.active["first"]
+		return !active
+	})
+
+	app.startAvailableDownloads()
+	waitForCondition(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(started) == 3
+	})
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if _, active := app.active["third"]; !active {
+		t.Fatalf("third item was not started after freeing a slot: active=%#v", app.active)
+	}
+}
+
+type testRelease struct {
+	ch   chan struct{}
+	once sync.Once
+}
+
+func newTestRelease() *testRelease {
+	return &testRelease{ch: make(chan struct{})}
+}
+
+func (r *testRelease) close() {
+	r.once.Do(func() { close(r.ch) })
+}
+
+func newParallelSchedulerTestApp(t *testing.T, parallelDownloads int, ids []string) *App {
+	t.Helper()
+	app := newPersistenceTestApp(t)
+	app.config.ParallelDownloads = parallelDownloads
+	for _, id := range ids {
+		app.items[id] = &DownloadItem{ID: id, Status: StatusPending}
+		app.queueOrder = append(app.queueOrder, id)
+	}
+	return app
+}
+
+func waitForCondition(t *testing.T, condition func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("condition was not met before timeout")
 }
 
 func TestRemoveDownloadDeletesCompletedFile(t *testing.T) {

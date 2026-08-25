@@ -85,6 +85,7 @@ export function UrlInput({ onSubmitAudio, onSubmitVideo, settingsOpen, onOpenSet
   const [askAudioQuality, setAskAudioQuality] = useState(true);
   const [askVideoQuality, setAskVideoQuality] = useState(true);
   const [fileDeletion, setFileDeletion] = useState<Config['file_deletion']>('ask');
+  const [parallelDownloads, setParallelDownloads] = useState(1);
   const [mediaType, setMediaType] = useState<'audio' | 'video'>('audio');
   const [downloadDir, setDownloadDir] = useState('---');
   const [playlistStates, setPlaylistStates] = useState<PlaylistLoadState[] | null>(null);
@@ -104,6 +105,7 @@ export function UrlInput({ onSubmitAudio, onSubmitVideo, settingsOpen, onOpenSet
         setAskAudioQuality(config.ask_audio_quality ?? true);
         setAskVideoQuality(config.ask_video_quality ?? true);
         setFileDeletion(config.file_deletion || 'ask');
+        setParallelDownloads(config.parallel_downloads || 1);
         setTheme(config.theme || 'dark');
       }
     });
@@ -276,6 +278,7 @@ export function UrlInput({ onSubmitAudio, onSubmitVideo, settingsOpen, onOpenSet
     newAskVideoQuality: boolean,
     newLanguage: 'pt-BR' | 'en-US',
     newTheme: Config['theme'],
+    newParallelDownloads: number,
   ) => {
     const config = await api.saveConfig({
       download_dir: newDownloadDir,
@@ -288,6 +291,7 @@ export function UrlInput({ onSubmitAudio, onSubmitVideo, settingsOpen, onOpenSet
       file_deletion: fileDeletion,
       language: newLanguage,
       theme: newTheme,
+      parallel_downloads: newParallelDownloads,
     });
     setDownloadDir(config?.download_dir || newDownloadDir);
     setAudioBitrateTarget(config?.audio_bitrate_target || newQuality);
@@ -296,6 +300,7 @@ export function UrlInput({ onSubmitAudio, onSubmitVideo, settingsOpen, onOpenSet
     setAskAudioQuality(config?.ask_audio_quality ?? newAskAudioQuality);
     setAskVideoQuality(config?.ask_video_quality ?? newAskVideoQuality);
     setFileDeletion(config?.file_deletion || fileDeletion);
+    setParallelDownloads(config?.parallel_downloads || newParallelDownloads);
     setLanguage((config?.language || newLanguage) as 'pt-BR' | 'en-US');
     setTheme(config?.theme || newTheme);
     setThemeBeforeSettings(null);
@@ -543,6 +548,7 @@ export function UrlInput({ onSubmitAudio, onSubmitVideo, settingsOpen, onOpenSet
           askVideoQuality={askVideoQuality}
           language={language as 'pt-BR' | 'en-US'}
           theme={theme}
+          parallelDownloads={parallelDownloads}
           onThemePreview={setTheme}
           onChooseFolder={handleSelectFolder}
           onClose={closeSettings}

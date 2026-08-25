@@ -13,23 +13,24 @@ import (
 )
 
 type App struct {
-	ctx        context.Context
-	config     Config
-	configPath string
-	items      map[string]*DownloadItem
-	queueOrder []string
-	mu         sync.Mutex
-	configMu   sync.Mutex
-	persistMu  sync.Mutex
-	cacheDir   string
-	queuePath  string
-	paused     bool
-	activeID   string
-	activeStop context.CancelFunc
-	wakeWorker chan struct{}
-	onItem     func(DownloadItem)
-	onStats    func(QueueStats)
-	fixedDir   string
+	ctx                 context.Context
+	config              Config
+	configPath          string
+	items               map[string]*DownloadItem
+	queueOrder          []string
+	mu                  sync.Mutex
+	configMu            sync.Mutex
+	persistMu           sync.Mutex
+	cacheDir            string
+	queuePath           string
+	paused              bool
+	active              map[string]context.CancelFunc
+	parallelOverride    int
+	wakeWorker          chan struct{}
+	onItem              func(DownloadItem)
+	onStats             func(QueueStats)
+	fixedDir            string
+	processDownloadFunc func(context.Context, *DownloadItem)
 }
 
 func NewApp() *App {
@@ -45,6 +46,7 @@ func NewApp() *App {
 		config:     defaultConfig(home),
 		configPath: filepath.Join(home, ".youtube-mp3-downloader-config.json"),
 		items:      make(map[string]*DownloadItem),
+		active:     make(map[string]context.CancelFunc),
 		queueOrder: make([]string, 0),
 		cacheDir:   filepath.Join(home, ".youtube-mp3-downloader-cache"),
 		queuePath:  filepath.Join(configDir, "youtube-mp3-downloader", "queue.json"),
@@ -92,9 +94,12 @@ func (a *App) start() {
 
 func (a *App) stop() {
 	a.mu.Lock()
-	stop := a.activeStop
+	stops := make([]context.CancelFunc, 0, len(a.active))
+	for _, stop := range a.active {
+		stops = append(stops, stop)
+	}
 	a.mu.Unlock()
-	if stop != nil {
+	for _, stop := range stops {
 		stop()
 	}
 	a.persistQueue()
@@ -254,15 +259,24 @@ func (a *App) GetStats() QueueStats {
 
 func (a *App) worker() {
 	for {
+		a.startAvailableDownloads()
+		<-a.wakeWorker
+	}
+}
+
+func (a *App) startAvailableDownloads() {
+	for {
 		a.mu.Lock()
 		var targetItem *DownloadItem
 		var workCtx context.Context
-		if !a.paused {
+		if !a.paused && len(a.active) < a.maxParallelDownloadsLocked() {
 			for _, id := range a.queueOrder {
 				if item, ok := a.items[id]; ok && item.Status == StatusPending {
 					targetItem = item
-					workCtx, a.activeStop = context.WithCancel(context.Background())
-					a.activeID = id
+					var stop context.CancelFunc
+					workCtx, stop = context.WithCancel(context.Background())
+					a.ensureActiveMapLocked()
+					a.active[id] = stop
 					item.Status = StatusFetching
 					if item.StartedAt == "" {
 						item.StartedAt = time.Now().Format(time.RFC3339)
@@ -273,20 +287,44 @@ func (a *App) worker() {
 		}
 		a.mu.Unlock()
 		if targetItem == nil {
-			<-a.wakeWorker
-			continue
+			return
 		}
 		a.persistQueue()
 		a.emitItemUpdate(targetItem.ID)
 		a.emitStats()
-		a.processDownload(workCtx, targetItem)
-		a.mu.Lock()
-		if a.activeID == targetItem.ID {
-			a.activeID = ""
-			a.activeStop = nil
-		}
-		a.mu.Unlock()
+		go a.runDownload(workCtx, targetItem)
 	}
+}
+
+func (a *App) runDownload(ctx context.Context, item *DownloadItem) {
+	if a.processDownloadFunc != nil {
+		a.processDownloadFunc(ctx, item)
+	} else {
+		a.processDownload(ctx, item)
+	}
+	a.mu.Lock()
+	delete(a.active, item.ID)
+	a.mu.Unlock()
+	a.signalWorker()
+}
+
+func (a *App) ensureActiveMapLocked() {
+	if a.active == nil {
+		a.active = make(map[string]context.CancelFunc)
+	}
+}
+
+func (a *App) maxParallelDownloadsLocked() int {
+	if a.parallelOverride > 0 {
+		return normalizeParallelDownloads(a.parallelOverride, a.parallelOverride)
+	}
+	return normalizeParallelDownloads(a.config.ParallelDownloads, defaultParallelDownloads())
+}
+
+func (a *App) effectiveParallelDownloads() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.maxParallelDownloadsLocked()
 }
 
 func (a *App) signalWorker() {
@@ -298,13 +336,14 @@ func (a *App) signalWorker() {
 
 func (a *App) isActiveItemLocked(id string) bool {
 	item, ok := a.items[id]
-	return ok && a.activeID == id && canUpdateActiveStatus(item.Status)
+	_, active := a.active[id]
+	return ok && active && canUpdateActiveStatus(item.Status)
 }
 
 func (a *App) setActiveItemStatus(id string, status DownloadStatus) bool {
 	a.mu.Lock()
 	item, ok := a.items[id]
-	if !ok || a.activeID != id || !canUpdateActiveStatus(item.Status) {
+	if _, active := a.active[id]; !ok || !active || !canUpdateActiveStatus(item.Status) {
 		a.mu.Unlock()
 		return false
 	}
@@ -375,8 +414,8 @@ func (a *App) CancelDownload(id string) {
 	}
 	item.Status = StatusCancelled
 	stop := context.CancelFunc(nil)
-	if a.activeID == id {
-		stop = a.activeStop
+	if activeStop, ok := a.active[id]; ok {
+		stop = activeStop
 	}
 	a.mu.Unlock()
 	if stop != nil {
@@ -436,18 +475,22 @@ func (a *App) PauseQueue() {
 		return
 	}
 	a.paused = true
-	activeID := a.activeID
-	stop := a.activeStop
-	if item, ok := a.items[activeID]; ok {
-		resetItemForRetry(item)
+	stops := make([]context.CancelFunc, 0, len(a.active))
+	activeIDs := make([]string, 0, len(a.active))
+	for id, stop := range a.active {
+		if item, ok := a.items[id]; ok {
+			resetItemForRetry(item)
+			activeIDs = append(activeIDs, id)
+		}
+		stops = append(stops, stop)
 	}
 	a.mu.Unlock()
-	if stop != nil {
+	for _, stop := range stops {
 		stop()
 	}
 	a.persistQueue()
-	if activeID != "" {
-		a.emitItemUpdate(activeID)
+	for _, id := range activeIDs {
+		a.emitItemUpdate(id)
 	}
 	a.emitStats()
 }
@@ -491,9 +534,9 @@ func (a *App) RemoveDownload(id string, deleteFile bool) error {
 	itemCopy := *item
 	downloadDir := a.config.DownloadDir
 	stop := context.CancelFunc(nil)
-	if a.activeID == id {
+	if activeStop, ok := a.active[id]; ok {
 		item.Status = StatusCancelled
-		stop = a.activeStop
+		stop = activeStop
 	}
 	a.mu.Unlock()
 
@@ -541,20 +584,24 @@ func (a *App) ClearCompleted(deleteFiles bool) error {
 }
 func (a *App) CancelAll() {
 	a.mu.Lock()
+	activeIDs := make([]string, 0, len(a.active))
+	stops := make([]context.CancelFunc, 0, len(a.active))
 	for _, item := range a.items {
 		if isCancellableStatus(item.Status) {
 			item.Status = StatusCancelled
 		}
 	}
-	activeID := a.activeID
-	stop := a.activeStop
+	for id, stop := range a.active {
+		activeIDs = append(activeIDs, id)
+		stops = append(stops, stop)
+	}
 	a.mu.Unlock()
-	if stop != nil {
+	for _, stop := range stops {
 		stop()
 	}
 	a.persistQueue()
-	if activeID != "" {
-		a.emitItemUpdate(activeID)
+	for _, id := range activeIDs {
+		a.emitItemUpdate(id)
 	}
 	a.emitStats()
 }
