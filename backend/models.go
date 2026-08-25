@@ -20,6 +20,27 @@ const (
 	StatusSkipped     DownloadStatus = "skipped"
 )
 
+func isRunningStatus(status DownloadStatus) bool {
+	switch status {
+	case StatusFetching, StatusDownloading, StatusConverting:
+		return true
+	default:
+		return false
+	}
+}
+
+func isCancellableStatus(status DownloadStatus) bool {
+	return status == StatusPending || isRunningStatus(status)
+}
+
+func isCompletedStatus(status DownloadStatus) bool {
+	return status == StatusCompleted || status == StatusSkipped
+}
+
+func canUpdateActiveStatus(status DownloadStatus) bool {
+	return status != StatusCancelled && status != StatusPending
+}
+
 type DownloadProgress struct {
 	Percent         float64 `json:"percent"`
 	DownloadedBytes int64   `json:"downloaded_bytes"`

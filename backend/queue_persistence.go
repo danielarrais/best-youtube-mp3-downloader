@@ -140,8 +140,7 @@ func (a *App) loadQueue() error {
 }
 
 func normalizeRestoredItem(item *DownloadItem, cacheDir string) bool {
-	switch item.Status {
-	case StatusFetching, StatusDownloading, StatusConverting:
+	if isRunningStatus(item.Status) {
 		for _, suffix := range []string{".tmp", ".video.tmp", ".audio.tmp"} {
 			os.Remove(filepath.Join(cacheDir, item.ID+suffix))
 		}
@@ -151,7 +150,8 @@ func normalizeRestoredItem(item *DownloadItem, cacheDir string) bool {
 		item.StartedAt = ""
 		item.CompletedAt = ""
 		return true
-	case StatusCompleted, StatusSkipped:
+	}
+	if isCompletedStatus(item.Status) {
 		if item.FilePath == "" {
 			markMissingFile(item)
 			return true

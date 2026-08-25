@@ -238,14 +238,14 @@ func (a *App) GetStats() QueueStats {
 	stats.Paused = a.paused
 	for _, item := range a.items {
 		stats.Total++
-		switch item.Status {
-		case StatusPending:
+		switch {
+		case item.Status == StatusPending:
 			stats.Pending++
-		case StatusFetching, StatusDownloading, StatusConverting:
+		case isRunningStatus(item.Status):
 			stats.Downloading++
-		case StatusCompleted, StatusSkipped:
+		case isCompletedStatus(item.Status):
 			stats.Completed++
-		case StatusFailed:
+		case item.Status == StatusFailed:
 			stats.Failed++
 		}
 	}
@@ -298,14 +298,13 @@ func (a *App) signalWorker() {
 
 func (a *App) isActiveItemLocked(id string) bool {
 	item, ok := a.items[id]
-	return ok && a.activeID == id &&
-		item.Status != StatusCancelled && item.Status != StatusPending
+	return ok && a.activeID == id && canUpdateActiveStatus(item.Status)
 }
 
 func (a *App) setActiveItemStatus(id string, status DownloadStatus) bool {
 	a.mu.Lock()
 	item, ok := a.items[id]
-	if !ok || a.activeID != id || item.Status == StatusCancelled || item.Status == StatusPending {
+	if !ok || a.activeID != id || !canUpdateActiveStatus(item.Status) {
 		a.mu.Unlock()
 		return false
 	}
@@ -388,12 +387,22 @@ func (a *App) CancelDownload(id string) {
 	a.emitStats()
 }
 
-func (a *App) RetryDownload(id string) DownloadItem {
+func (a *App) downloadByID(id string) (DownloadItem, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	item, ok := a.items[id]
+	if !ok {
+		return DownloadItem{}, false
+	}
+	return *item, true
+}
+
+func (a *App) RetryDownload(id string) (DownloadItem, error) {
 	a.mu.Lock()
 	item, ok := a.items[id]
 	if !ok {
 		a.mu.Unlock()
-		return DownloadItem{}
+		return DownloadItem{}, os.ErrNotExist
 	}
 	resetItemForRetry(item)
 	result := *item
@@ -402,7 +411,7 @@ func (a *App) RetryDownload(id string) DownloadItem {
 	a.emitItemUpdate(id)
 	a.emitStats()
 	a.signalWorker()
-	return result
+	return result, nil
 }
 
 func (a *App) RetryFailed() {
@@ -491,7 +500,7 @@ func (a *App) RemoveDownload(id string, deleteFile bool) error {
 	if stop != nil {
 		stop()
 	}
-	if deleteFile && (itemCopy.Status == StatusCompleted || itemCopy.Status == StatusSkipped) {
+	if deleteFile && isCompletedStatus(itemCopy.Status) {
 		if err := removeDownloadFile(downloadDir, itemCopy.FilePath); err != nil {
 			return err
 		}
@@ -521,7 +530,7 @@ func (a *App) RemoveDownload(id string, deleteFile bool) error {
 func (a *App) ClearCompleted(deleteFiles bool) error {
 	items := a.GetDownloads()
 	for _, item := range items {
-		if item.Status != StatusCompleted && item.Status != StatusSkipped {
+		if !isCompletedStatus(item.Status) {
 			continue
 		}
 		if err := a.RemoveDownload(item.ID, deleteFiles); err != nil {
@@ -533,10 +542,7 @@ func (a *App) ClearCompleted(deleteFiles bool) error {
 func (a *App) CancelAll() {
 	a.mu.Lock()
 	for _, item := range a.items {
-		if item.Status == StatusPending ||
-			item.Status == StatusFetching ||
-			item.Status == StatusDownloading ||
-			item.Status == StatusConverting {
+		if isCancellableStatus(item.Status) {
 			item.Status = StatusCancelled
 		}
 	}

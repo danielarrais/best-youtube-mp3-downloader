@@ -457,12 +457,16 @@ func newStreamingHTTPClient() *http.Client {
 }
 
 func NewYouTubeSession() *YouTubeSession {
-	youtube.DefaultClient = configuredYouTubeClientInfo(youtube.DefaultClient)
+	configureDefaultYouTubeClient()
 	httpClient, transport := newMetadataHTTPClient()
 	return &YouTubeSession{
 		client:    &youtube.Client{HTTPClient: httpClient, MaxRoutines: 1},
 		transport: transport,
 	}
+}
+
+func configureDefaultYouTubeClient() {
+	youtube.DefaultClient = configuredYouTubeClientInfo(youtube.DefaultClient)
 }
 
 func configuredYouTubeClientInfo(client youtube.ClientInfo) youtube.ClientInfo {

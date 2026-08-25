@@ -146,11 +146,11 @@ func (s *webServer) addDownloads(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *webServer) cancelDownload(w http.ResponseWriter, r *http.Request) {
-	if !s.downloadExists(r.PathValue("id")) {
-		writeAPIError(w, http.StatusNotFound, errors.New("download not found"))
+	id := r.PathValue("id")
+	if _, ok := s.requireDownload(id, w); !ok {
 		return
 	}
-	s.app.CancelDownload(r.PathValue("id"))
+	s.app.CancelDownload(id)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -173,20 +173,33 @@ func (s *webServer) removeDownload(w http.ResponseWriter, r *http.Request) {
 
 func (s *webServer) retryDownload(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if !s.downloadExists(id) {
-		writeAPIError(w, http.StatusNotFound, errors.New("download not found"))
+	item, err := s.app.RetryDownload(id)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			writeAPIError(w, http.StatusNotFound, errors.New("download not found"))
+			return
+		}
+		writeAPIError(w, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, s.app.RetryDownload(id))
+	writeJSON(w, http.StatusOK, item)
+}
+
+func (s *webServer) requireDownload(id string, w http.ResponseWriter) (DownloadItem, bool) {
+	item, ok := s.app.downloadByID(id)
+	if !ok {
+		writeAPIError(w, http.StatusNotFound, errors.New("download not found"))
+		return DownloadItem{}, false
+	}
+	return item, true
 }
 
 func (s *webServer) downloadFile(w http.ResponseWriter, r *http.Request) {
-	item, ok := s.downloadByID(r.PathValue("id"))
+	item, ok := s.requireDownload(r.PathValue("id"), w)
 	if !ok {
-		writeAPIError(w, http.StatusNotFound, errors.New("download not found"))
 		return
 	}
-	if item.Status != StatusCompleted && item.Status != StatusSkipped {
+	if !isCompletedStatus(item.Status) {
 		writeAPIError(w, http.StatusConflict, errors.New("download is not complete"))
 		return
 	}
@@ -329,21 +342,6 @@ func (s *webServer) frontend(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", contentType)
 	}
 	_, _ = w.Write(data)
-}
-
-func (s *webServer) downloadExists(id string) bool {
-	_, ok := s.downloadByID(id)
-	return ok
-}
-
-func (s *webServer) downloadByID(id string) (DownloadItem, bool) {
-	s.app.mu.Lock()
-	defer s.app.mu.Unlock()
-	item, ok := s.app.items[id]
-	if !ok {
-		return DownloadItem{}, false
-	}
-	return *item, true
 }
 
 func decodeJSON(r *http.Request, destination any) error {
