@@ -35,10 +35,10 @@ RUN case "$TARGETARCH" in \
         arm64) filename="ffmpeg-master-latest-linuxarm64-lgpl.tar.xz" ;; \
         *) echo "unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac \
-    && curl --fail --location --retry 3 \
+    && curl --fail --location --show-error --retry 8 --retry-all-errors --retry-delay 5 \
         "$FFMPEG_BASE_URL/checksums.sha256" \
         --output /tmp/checksums.sha256 \
-    && curl --fail --location --retry 3 \
+    && curl --fail --location --show-error --retry 8 --retry-all-errors --retry-delay 5 \
         "$FFMPEG_BASE_URL/$filename" \
         --output "/tmp/$filename" \
     && expected_checksum="$(grep "  $filename$" /tmp/checksums.sha256 | cut -d ' ' -f 1)" \
@@ -63,10 +63,10 @@ RUN case "$TARGETARCH" in \
         arm64) filename="yt-dlp_linux_aarch64" ;; \
         *) echo "unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac \
-    && curl --fail --location --retry 3 \
+    && curl --fail --location --show-error --retry 8 --retry-all-errors --retry-delay 5 \
         "$YTDLP_BASE_URL/SHA2-256SUMS" \
         --output /tmp/ytdlp-checksums.sha256 \
-    && curl --fail --location --retry 3 \
+    && curl --fail --location --show-error --retry 8 --retry-all-errors --retry-delay 5 \
         "$YTDLP_BASE_URL/$filename" \
         --output "/tmp/$filename" \
     && grep "  $filename$" /tmp/ytdlp-checksums.sha256 \
